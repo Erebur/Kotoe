@@ -318,7 +318,13 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
 - The native macOS sheet action bar (created by a `.confirmationAction`
   toolbar item) does not pick up the tinted background. `FlashcardSetEditView`
   uses an in-content `safeAreaInset` footer with its Done button on macOS and
-  keeps the native toolbar on iOS.
+  keeps the native toolbar on iOS. On macOS the window toolbar is hidden
+  (`.toolbarVisibility(.hidden, for: .windowToolbar)`) because the native
+  titlebar draws its own solid material that cuts the ambient gradient; the
+  screens show their title in the content instead, and `FlashcardEditorView`
+  provides its own back button (`dismiss()` pops the pushed destination).
+  Keep the footer inset inside the `ZStack` and avoid a `Divider` or opaque
+  footer fill.
 - Images render through `NSImage`/`UIImage` helpers, and drawings are rendered
   in light mode so ink matches the white canvas.
 

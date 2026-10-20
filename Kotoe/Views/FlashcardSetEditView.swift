@@ -40,25 +40,35 @@ struct FlashcardSetEditView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
+                        #if os(macOS)
+                        Text("Edit Set")
+                            .font(.headline)
+                        #endif
+
                         header
                         notesCard
                         cardsSection
                     }
                     .padding(.horizontal, 22)
-                    .padding(.top, 12)
+                    .padding(.top, 22)
                     .padding(.bottom, 34)
                     .frame(maxWidth: 760, alignment: .leading)
                     .frame(maxWidth: .infinity)
                 }
+                #if os(macOS)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    sheetFooter
+                }
+                #endif
             }
-            #if os(macOS)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                sheetFooter
-            }
-            #endif
             .clearInitialFocusOnMac()
             .navigationTitle("Edit Set")
             .inlineNavigationBarTitle()
+            #if os(macOS)
+            // Hide the titlebar on macOS so the ambient gradient covers the
+            // whole sheet. The in-content title keeps the screen labeled.
+            .toolbarVisibility(.hidden, for: .windowToolbar)
+            #endif
             .navigationDestination(for: Flashcard.self) { card in
                 FlashcardEditorView(card: card, tint: tint)
             }
@@ -101,10 +111,7 @@ struct FlashcardSetEditView: View {
                 .tint(tint)
         }
         .padding(.horizontal, 22)
-        .padding(.vertical, 12)
-        .overlay(alignment: .top) {
-            Divider()
-        }
+        .padding(.vertical, 18)
     }
     #endif
 
@@ -619,6 +626,7 @@ private struct CardRow: View {
 
 struct FlashcardEditorView: View {
 
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
     let card: Flashcard
@@ -629,7 +637,11 @@ struct FlashcardEditorView: View {
             AmbientBackground(tint: tint)
 
             ScrollView {
-                VStack(spacing: 18) {
+                VStack(alignment: .leading, spacing: 18) {
+                    #if os(macOS)
+                    macBackButton
+                    #endif
+
                     if let front = card.front {
                         SideEditorSection(
                             title: "Front",
@@ -653,7 +665,8 @@ struct FlashcardEditorView: View {
                     }
                 }
                 .padding(.horizontal, 22)
-                .padding(.vertical, 18)
+                .padding(.top, 22)
+                .padding(.bottom, 18)
                 .frame(maxWidth: 720, alignment: .leading)
                 .frame(maxWidth: .infinity)
             }
@@ -662,8 +675,32 @@ struct FlashcardEditorView: View {
         .tint(tint)
         .navigationTitle("Edit Card")
         .inlineNavigationBarTitle()
+        #if os(macOS)
+        // The window toolbar is hidden, so the back affordance lives in the
+        // content and the ambient gradient can reach the sheet's top edge.
+        .toolbarVisibility(.hidden, for: .windowToolbar)
+        #endif
         .onAppear(perform: ensureSides)
     }
+
+    #if os(macOS)
+    private var macBackButton: some View {
+        Button {
+            dismiss()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 11, weight: .semibold))
+
+                Text("Edit Card")
+                    .font(.headline)
+            }
+            .foregroundStyle(.primary)
+        }
+        .buttonStyle(.plain)
+        .help("Back to set")
+    }
+    #endif
 
     /// Makes sure both sides exist, in case a card was created without them.
     private func ensureSides() {
