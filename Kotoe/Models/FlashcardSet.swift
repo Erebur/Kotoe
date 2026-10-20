@@ -40,6 +40,8 @@ final class FlashcardSet {
 
         self.name = name
         self.notes = notes
+
+        self.position = position
     }
     
     var sortedFlashcards: [Flashcard] {

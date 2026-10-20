@@ -90,6 +90,8 @@ Kotoe/
     Helper/
       PlatformModifiers.swift    cross-platform view modifiers
       IconButton.swift           shared button + `if` modifier
+      Theme.swift                brand colors, card surfaces, shared UI pieces
+      CreateItemSheet.swift      shared "create subject / create set" prompt
 ```
 
 ## Data model
