@@ -10,7 +10,20 @@ import SwiftData
 
 @main
 struct FlashApp: App {
-    var sharedModelContainer: ModelContainer = {
+    private static let demoContainer: ModelContainer = {
+        let schema = Schema([
+            Subject.self,
+            FlashcardSet.self,
+            Flashcard.self,
+            FlashcardSide.self,
+        ])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try! ModelContainer(for: schema, configurations: [config])
+        DemoSeed.populate(container.mainContext)
+        return container
+    }()
+
+    private static let liveContainer: ModelContainer = {
         let schema = Schema([
             Subject.self,
             FlashcardSet.self,
@@ -30,10 +43,25 @@ struct FlashApp: App {
         }
     }()
 
+    var sharedModelContainer: ModelContainer {
+        DemoMode.isActive ? Self.demoContainer : Self.liveContainer
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            Group {
+                if DemoMode.isActive {
+                    DemoRootView()
+                } else {
+                    ContentView()
+                }
+            }
+            .tint(KotoeTheme.accent)
         }
         .modelContainer(sharedModelContainer)
+        #if os(macOS)
+        .defaultSize(width: 1100, height: 760)
+        .windowToolbarStyle(.unified)
+        #endif
     }
 }

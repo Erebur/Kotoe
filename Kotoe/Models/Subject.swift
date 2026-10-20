@@ -50,4 +50,13 @@ final class Subject {
             .filter { !$0.isArchived }
             .sorted { $0.position < $1.position }
     }
+
+    /// Every card in the subject, in set order.
+    var allCards: [Flashcard] {
+        sortedFlashcardSets.flatMap(\.sortedFlashcards)
+    }
+
+    var cardCount: Int {
+        allCards.count
+    }
 }

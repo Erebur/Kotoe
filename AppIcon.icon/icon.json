@@ -11,14 +11,11 @@
     },
     {
       "appearance" : "dark",
-      "value" : {
-        "automatic-gradient" : "extended-srgb:0.54118,0.18039,0.03137,1.00000"
-      }
+      "value" : "automatic"
     }
   ],
   "groups" : [
     {
-      "name" : "Accent",
       "layers" : [
         {
           "glass" : true,
@@ -26,6 +23,12 @@
           "name" : "Spark"
         }
       ],
+      "name" : "Accent",
+      "refractivity" : {
+        "depth" : 0.35,
+        "enabled" : true,
+        "strength" : 0.25
+      },
       "shadow" : {
         "kind" : "layer-color",
         "opacity" : 0.4
@@ -34,15 +37,10 @@
       "translucency" : {
         "enabled" : true,
         "value" : 0.1
-      },
-      "refractivity" : {
-        "enabled" : true,
-        "depth" : 0.35,
-        "strength" : 0.25
       }
     },
     {
-      "name" : "Flashcards",
+      "blur-material" : 0.25,
       "layers" : [
         {
           "glass" : true,
@@ -55,22 +53,22 @@
           "name" : "Back Card"
         }
       ],
+      "lighting" : "combined",
+      "name" : "Flashcards",
+      "refractivity" : {
+        "depth" : 0.55,
+        "enabled" : true,
+        "strength" : 0.35
+      },
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.45
       },
       "specular" : "outside",
-      "lighting" : "combined",
       "translucency" : {
         "enabled" : true,
         "value" : 0.22
-      },
-      "refractivity" : {
-        "enabled" : true,
-        "depth" : 0.55,
-        "strength" : 0.35
-      },
-      "blur-material" : 0.25
+      }
     }
   ],
   "supported-platforms" : {

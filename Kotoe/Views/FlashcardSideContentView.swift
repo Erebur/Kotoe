@@ -153,9 +153,29 @@ extension FlashcardSide {
 
 // MARK: - Side content rendering
 
+extension FlashcardContentType {
+
+    var displayName: String {
+        switch self {
+        case .richText: return "Text"
+        case .image: return "Image"
+        case .drawing: return "Drawing"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .richText: return "text.alignleft"
+        case .image: return "photo"
+        case .drawing: return "pencil.tip"
+        }
+    }
+}
+
 struct FlashcardSideContentView: View {
 
     let side: FlashcardSide?
+    var textFont: Font = .title2
 
     @Environment(\.displayScale) private var displayScale
 
@@ -176,8 +196,9 @@ struct FlashcardSideContentView: View {
                 placeholder
             } else {
                 Text(text)
-                    .font(.title2)
+                    .font(textFont)
                     .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.6)
             }
 
         case .image:
@@ -185,7 +206,9 @@ struct FlashcardSideContentView: View {
                 image
                     .resizable()
                     .scaledToFit()
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
             } else {
                 placeholder
             }
@@ -196,7 +219,13 @@ struct FlashcardSideContentView: View {
                 image
                     .resizable()
                     .scaledToFit()
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: 8))
+                    .background(
+                        Color.white,
+                        in: RoundedRectangle(
+                            cornerRadius: 12,
+                            style: .continuous
+                        )
+                    )
             } else {
                 placeholder
             }
@@ -204,7 +233,7 @@ struct FlashcardSideContentView: View {
     }
 
     private var placeholder: some View {
-        Text("Empty")
+        Label("Empty", systemImage: "square.dashed")
             .font(.title3)
             .foregroundStyle(.tertiary)
     }
@@ -508,15 +537,19 @@ struct DrawingEditorView: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { dismiss() }
+                            .keyboardShortcut(.cancelAction)
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") {
                             onSave(drawing)
                             dismiss()
                         }
+                        .keyboardShortcut(.defaultAction)
                     }
                 }
         }
+        .editorSheetSize(width: 780, height: 600)
+        .tint(KotoeTheme.accent)
     }
 
     @ViewBuilder
@@ -533,14 +566,24 @@ struct DrawingEditorView: View {
 
             Divider()
 
-            HStack(spacing: 12) {
+            HStack(spacing: 14) {
                 ColorPicker("Pen Color", selection: $inkColor)
                     .labelsHidden()
+                    .help("Pen color")
 
-                Slider(value: $lineWidth, in: 1...24) {
-                    Text("Width")
+                HStack(spacing: 8) {
+                    Image(systemName: "pencil.tip")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+
+                    Slider(value: $lineWidth, in: 1...24)
+                        .frame(width: 150)
+
+                    Text("\(Int(lineWidth.rounded())) pt")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 40, alignment: .leading)
                 }
-                .frame(width: 160)
 
                 Spacer()
 
@@ -558,7 +601,8 @@ struct DrawingEditorView: View {
                 }
                 .disabled(drawing.strokes.isEmpty)
             }
-            .padding()
+            .padding(14)
+            .background(KotoeTheme.cardBackground)
         }
 
         #else
