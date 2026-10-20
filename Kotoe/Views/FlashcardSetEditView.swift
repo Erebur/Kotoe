@@ -62,7 +62,7 @@ struct FlashcardSetEditView: View {
                 #endif
             }
             .clearInitialFocusOnMac()
-            .navigationTitle("Edit Set")
+            .navigationTitle("setEditView.navigation.title")
             .inlineNavigationBarTitle()
             #if os(macOS)
             // Hide the titlebar on macOS so the ambient gradient covers the
@@ -91,7 +91,7 @@ struct FlashcardSetEditView: View {
     }
 
     private var doneButton: some View {
-        Button("Done") {
+        Button("shared.actions.done") {
             finishRenaming()
             try? modelContext.save()
             dismiss()
@@ -144,12 +144,15 @@ struct FlashcardSetEditView: View {
                 }
             }
             .buttonStyle(PressableCardStyle())
-            .help("Change icon and color")
+            .help("shared.actions.changeIconColorHelp")
 
             VStack(alignment: .leading, spacing: 5) {
                 if isRenaming {
                     HStack(spacing: 8) {
-                        TextField("Set name", text: $draftName)
+                        TextField(
+                            "setEditView.header.namePlaceholder",
+                            text: $draftName
+                        )
                             .textFieldStyle(.plain)
                             .font(
                                 .system(
@@ -171,7 +174,7 @@ struct FlashcardSetEditView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(trimmedDraftName.isEmpty)
-                        .help("Save name")
+                        .help("shared.actions.saveNameHelp")
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
@@ -217,13 +220,13 @@ struct FlashcardSetEditView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .help("Rename set")
+                        .help("setEditView.header.renameHelp")
                     }
                 }
 
                 HStack(spacing: 13) {
                     StatLabel(
-                        text: pluralized(cards.count, "card"),
+                        text: LocalizedCounts.cards(cards.count),
                         systemImage: "rectangle.on.rectangle.angled"
                     )
 
@@ -244,10 +247,13 @@ struct FlashcardSetEditView: View {
 
     private var notesCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Notes", systemImage: "note.text")
+            SectionHeader(
+                title: "shared.section.notes",
+                systemImage: "note.text"
+            )
 
             TextField(
-                "Add notes about this set…",
+                "setEditView.notes.placeholder",
                 text: notesBinding,
                 axis: .vertical
             )
@@ -272,14 +278,17 @@ struct FlashcardSetEditView: View {
     private var cardsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                SectionHeader(title: "Cards", systemImage: "rectangle.stack")
+                SectionHeader(
+                    title: "shared.section.cards",
+                    systemImage: "rectangle.stack"
+                )
 
                 Spacer()
 
                 Button {
                     addCard()
                 } label: {
-                    Label("Add Card", systemImage: "plus")
+                    Label("setEditView.cards.addCard", systemImage: "plus")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -321,11 +330,11 @@ struct FlashcardSetEditView: View {
                     .font(.system(size: 28))
                     .foregroundStyle(tint)
 
-                Text("Add Your First Card")
+                Text("setEditView.emptyState.title")
                     .font(.headline)
 
                 Text(
-                    "A card has a front — the prompt — and a back — the answer."
+                    "setEditView.emptyState.message"
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -353,8 +362,12 @@ struct FlashcardSetEditView: View {
 
     private var appearanceEditor: some View {
         AppearanceEditor(
-            title: "Set Appearance",
-            subtitle: "Choose the icon and color for \(flashcardSet.name).",
+            title: "setEditView.appearanceEditor.title",
+            subtitle: String(
+                localized: "setEditView.appearanceEditor.subtitle",
+                defaultValue:
+                    "Choose the icon and color for \(flashcardSet.name)."
+            ),
             symbols: KotoeTheme.setSymbols,
             defaultSymbol: "rectangle.stack.fill",
             defaultTintIndex: flashcardSet.effectiveTintIndex,
@@ -493,10 +506,6 @@ struct FlashcardSetEditView: View {
             card.position = index
         }
     }
-
-    private func pluralized(_ count: Int, _ noun: String) -> String {
-        "\(count) \(noun)\(count == 1 ? "" : "s")"
-    }
 }
 
 // MARK: - Card Row
@@ -535,7 +544,7 @@ private struct ReorderableCardRow: View {
                         .cardSurface(padding: 10)
                         .frame(width: 300)
                 }
-                .help("Drag to reorder")
+                .help("setEditView.cardRow.dragHelp")
         }
         .cardSurface(padding: 12)
         .overlay {
@@ -557,18 +566,21 @@ private struct ReorderableCardRow: View {
         }
         .contextMenu {
             Button(action: onMoveUp) {
-                Label("Move Up", systemImage: "arrow.up")
+                Label("setEditView.cardRow.moveUp", systemImage: "arrow.up")
             }
             .disabled(index == 0)
 
             Button(action: onMoveDown) {
-                Label("Move Down", systemImage: "arrow.down")
+                Label(
+                    "setEditView.cardRow.moveDown",
+                    systemImage: "arrow.down"
+                )
             }
 
             Divider()
 
             Button(role: .destructive, action: onDelete) {
-                Label("Delete Card", systemImage: "trash")
+                Label("setEditView.cardRow.delete", systemImage: "trash")
             }
         }
         .animation(.snappy(duration: 0.2), value: isDropTargeted)
@@ -602,15 +614,21 @@ private struct CardRow: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.tertiary)
 
-                    Text(card.front?.summary ?? "Empty")
-                        .font(.headline)
-                        .lineLimit(1)
+                    Text(
+                        card.front?.summary
+                            ?? String(localized: "shared.content.empty")
+                    )
+                    .font(.headline)
+                    .lineLimit(1)
                 }
 
-                Text(card.back?.summary ?? "Empty")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                Text(
+                    card.back?.summary
+                        ?? String(localized: "shared.content.empty")
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             }
 
             Spacer(minLength: 8)
@@ -644,8 +662,9 @@ struct FlashcardEditorView: View {
 
                     if let front = card.front {
                         SideEditorSection(
-                            title: "Front",
-                            subtitle: "The prompt you see first",
+                            title: "cardEditor.front.title",
+                            subtitle: "cardEditor.front.subtitle",
+                            placeholder: "cardEditor.front.textPlaceholder",
                             systemImage: "questionmark.circle.fill",
                             tint: tint,
                             accent: tint,
@@ -655,8 +674,9 @@ struct FlashcardEditorView: View {
 
                     if let back = card.back {
                         SideEditorSection(
-                            title: "Back",
-                            subtitle: "The answer you reveal",
+                            title: "cardEditor.back.title",
+                            subtitle: "cardEditor.back.subtitle",
+                            placeholder: "cardEditor.back.textPlaceholder",
                             systemImage: "checkmark.circle.fill",
                             tint: KotoeTheme.success,
                             accent: tint,
@@ -673,7 +693,7 @@ struct FlashcardEditorView: View {
         }
         .clearInitialFocusOnMac()
         .tint(tint)
-        .navigationTitle("Edit Card")
+        .navigationTitle("cardEditor.navigation.title")
         .inlineNavigationBarTitle()
         #if os(macOS)
         // The window toolbar is hidden, so the back affordance lives in the
@@ -722,8 +742,9 @@ struct FlashcardEditorView: View {
 
 private struct SideEditorSection: View {
 
-    let title: String
-    let subtitle: String
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
+    let placeholder: LocalizedStringKey
     let systemImage: String
     let tint: Color
     let accent: Color
@@ -758,10 +779,16 @@ private struct SideEditorSection: View {
                     .background(tint.opacity(0.10), in: Capsule())
             }
 
-            Picker("Content", selection: $side.contentType) {
-                Text("Text").tag(FlashcardContentType.richText)
-                Text("Image").tag(FlashcardContentType.image)
-                Text("Drawing").tag(FlashcardContentType.drawing)
+            Picker(
+                "sideEditor.contentPicker.label",
+                selection: $side.contentType
+            ) {
+                Text("shared.contentType.text")
+                    .tag(FlashcardContentType.richText)
+                Text("shared.contentType.image")
+                    .tag(FlashcardContentType.image)
+                Text("shared.contentType.drawing")
+                    .tag(FlashcardContentType.drawing)
             }
             .labelsHidden()
             .pickerStyle(.segmented)
@@ -779,7 +806,7 @@ private struct SideEditorSection: View {
     private var content: some View {
         switch side.contentType {
         case .richText:
-            TextField("\(title) text", text: textBinding, axis: .vertical)
+            TextField(placeholder, text: textBinding, axis: .vertical)
                 .textFieldStyle(.plain)
                 .lineLimit(3...12)
                 .padding(12)
@@ -811,6 +838,12 @@ private struct SideEditorSection: View {
 
     // MARK: Image
 
+    private var photoActionTitle: LocalizedStringKey {
+        side.imageData == nil
+            ? "sideEditor.image.choose"
+            : "sideEditor.image.replace"
+    }
+
     @ViewBuilder
     private var imageControls: some View {
         if side.imageData != nil {
@@ -837,9 +870,7 @@ private struct SideEditorSection: View {
         PhotosPicker(selection: $pickerItem, matching: .images) {
             HStack(spacing: 8) {
                 Image(systemName: "photo.on.rectangle.angled")
-                Text(
-                    side.imageData == nil ? "Choose Photo" : "Replace Photo"
-                )
+                Text(photoActionTitle)
             }
             .font(.subheadline.weight(.medium))
             .frame(maxWidth: .infinity)
@@ -865,6 +896,12 @@ private struct SideEditorSection: View {
     }
 
     // MARK: Drawing
+
+    private var drawingActionTitle: LocalizedStringKey {
+        side.drawingData == nil
+            ? "sideEditor.drawing.draw"
+            : "sideEditor.drawing.edit"
+    }
 
     @ViewBuilder
     private var drawingControls: some View {
@@ -895,9 +932,7 @@ private struct SideEditorSection: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "pencil.tip.crop.circle")
-                Text(
-                    side.drawingData == nil ? "Draw" : "Edit Drawing"
-                )
+                Text(drawingActionTitle)
             }
             .font(.subheadline.weight(.medium))
             .frame(maxWidth: .infinity)
@@ -925,6 +960,6 @@ private struct SideEditorSection: View {
                 .background(.regularMaterial, in: Circle())
         }
         .buttonStyle(.plain)
-        .help("Remove content")
+        .help("sideEditor.removeContent.help")
     }
 }

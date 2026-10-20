@@ -10,7 +10,7 @@ import SwiftUI
 
 struct AppearanceEditor: View {
 
-    let title: String
+    let title: LocalizedStringKey
     let subtitle: String
     let symbols: [String]
 
@@ -23,7 +23,7 @@ struct AppearanceEditor: View {
     @State private var draftTintIndex: Int
 
     init(
-        title: String,
+        title: LocalizedStringKey,
         subtitle: String,
         symbols: [String],
         defaultSymbol: String,
@@ -99,7 +99,10 @@ struct AppearanceEditor: View {
 
     private var iconSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Icon", systemImage: "square.grid.2x2")
+            SectionHeader(
+                title: "appearanceEditor.icon.sectionTitle",
+                systemImage: "square.grid.2x2"
+            )
 
             LazyVGrid(columns: symbolColumns, spacing: 10) {
                 ForEach(symbols, id: \.self) { symbol in
@@ -147,7 +150,10 @@ struct AppearanceEditor: View {
 
     private var colorSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Color", systemImage: "paintpalette")
+            SectionHeader(
+                title: "appearanceEditor.color.sectionTitle",
+                systemImage: "paintpalette"
+            )
 
             LazyVGrid(columns: colorColumns, spacing: 10) {
                 ForEach(
@@ -162,6 +168,10 @@ struct AppearanceEditor: View {
 
     private func colorButton(_ color: Color, index: Int) -> some View {
         let isSelected = index == draftTintIndex
+        let colorLabel = String(
+            localized: "appearanceEditor.color.accessibilityLabel",
+            defaultValue: "Color \(index + 1)"
+        )
 
         return Button {
             draftTintIndex = index
@@ -188,8 +198,8 @@ struct AppearanceEditor: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .help("Color \(index + 1)")
-        .accessibilityLabel("Color \(index + 1)")
+        .help(colorLabel)
+        .accessibilityLabel(colorLabel)
         .if(isSelected) { view in
             view.accessibilityAddTraits(.isSelected)
         }
@@ -199,19 +209,19 @@ struct AppearanceEditor: View {
 
     private var footer: some View {
         HStack(spacing: 10) {
-            Button("Reset") {
+            Button("appearanceEditor.footer.reset") {
                 reset()
             }
-            .help("Use the icon and color suggested by the name")
+            .help("appearanceEditor.footer.resetHelp")
 
             Spacer()
 
-            Button("Cancel", role: .cancel) {
+            Button("shared.actions.cancel", role: .cancel) {
                 dismiss()
             }
             .keyboardShortcut(.cancelAction)
 
-            Button("Done") {
+            Button("shared.actions.done") {
                 apply()
             }
             .buttonStyle(.borderedProminent)

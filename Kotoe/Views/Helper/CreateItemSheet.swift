@@ -9,11 +9,11 @@ import SwiftUI
 
 struct CreateItemSheet: View {
 
-    let title: String
-    let prompt: String
+    let title: LocalizedStringKey
+    let prompt: LocalizedStringKey
     let systemImage: String
-    let placeholder: String
-    let actionTitle: String
+    let placeholder: LocalizedStringKey
+    let actionTitle: LocalizedStringKey
     var tint: Color = KotoeTheme.accent
 
     @Binding var name: String
@@ -73,7 +73,7 @@ struct CreateItemSheet: View {
             HStack(spacing: 10) {
                 Spacer()
 
-                Button("Cancel", role: .cancel) {
+                Button("shared.actions.cancel", role: .cancel) {
                     onCancel()
                 }
                 .keyboardShortcut(.cancelAction)

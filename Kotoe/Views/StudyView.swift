@@ -66,7 +66,7 @@ struct StudyView: View {
                             start(shuffled: false)
                         } label: {
                             Label(
-                                "Restart",
+                                "studyView.options.restart",
                                 systemImage: "arrow.counterclockwise"
                             )
                         }
@@ -74,7 +74,10 @@ struct StudyView: View {
                         Button {
                             start(shuffled: true)
                         } label: {
-                            Label("Restart Shuffled", systemImage: "shuffle")
+                            Label(
+                                "studyView.options.restartShuffled",
+                                systemImage: "shuffle"
+                            )
                         }
 
                         Divider()
@@ -82,13 +85,19 @@ struct StudyView: View {
                         Button {
                             flipCurrentCard()
                         } label: {
-                            Label("Reveal Answer", systemImage: "eye")
+                            Label(
+                                "studyView.options.revealAnswer",
+                                systemImage: "eye"
+                            )
                         }
                         .disabled(isFlipped || queue.isEmpty)
                     } label: {
-                        Label("Options", systemImage: "ellipsis.circle")
+                        Label(
+                            "studyView.options.title",
+                            systemImage: "ellipsis.circle"
+                        )
                     }
-                    .help("Study options")
+                    .help("studyView.options.help")
                 }
             }
         }
@@ -161,6 +170,20 @@ struct StudyView: View {
         }
     }
 
+    private var progressLabel: String {
+        String(
+            localized: "studyView.progress.learned",
+            defaultValue: "\(known) of \(total) learned"
+        )
+    }
+
+    private var cardsLeftLabel: String {
+        String(
+            localized: "studyView.progress.cardsLeft",
+            defaultValue: "\(queue.count) cards left"
+        )
+    }
+
     private var progressCard: some View {
         HStack(spacing: 14) {
             ZStack {
@@ -183,7 +206,7 @@ struct StudyView: View {
                     .rotationEffect(.degrees(-90))
                     .animation(.snappy(duration: 0.4), value: known)
 
-                Text("\(Int((progress * 100).rounded()))%")
+                Text(verbatim: "\(Int((progress * 100).rounded()))%")
                     .font(.caption2.weight(.bold))
                     .monospacedDigit()
                     .contentTransition(.numericText())
@@ -191,18 +214,14 @@ struct StudyView: View {
             .frame(width: 46, height: 46)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("\(known) of \(total) learned")
+                Text(verbatim: progressLabel)
                     .font(.subheadline.weight(.semibold))
                     .contentTransition(.numericText())
 
-                Text(
-                    queue.count == 1
-                        ? "1 card left"
-                        : "\(queue.count) cards left"
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .contentTransition(.numericText())
+                Text(verbatim: cardsLeftLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
             }
 
             Spacer(minLength: 8)
@@ -224,8 +243,11 @@ struct StudyView: View {
                 Button {
                     answer(correct: false)
                 } label: {
-                    Label("Again", systemImage: "arrow.counterclockwise")
-                        .frame(maxWidth: .infinity)
+                    Label(
+                        "studyView.controls.again",
+                        systemImage: "arrow.counterclockwise"
+                    )
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(
                     StudyActionButtonStyle(
@@ -237,7 +259,7 @@ struct StudyView: View {
                 Button {
                     answer(correct: true)
                 } label: {
-                    Label("Got It", systemImage: "checkmark")
+                    Label("studyView.controls.gotIt", systemImage: "checkmark")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(StudyActionButtonStyle(tint: KotoeTheme.success))
@@ -248,10 +270,13 @@ struct StudyView: View {
             Button {
                 flipCurrentCard()
             } label: {
-                Label("Reveal Answer", systemImage: "eye.fill")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
+                Label(
+                    "studyView.controls.revealAnswer",
+                    systemImage: "eye.fill"
+                )
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
             }
             .buttonStyle(.borderedProminent)
             .tint(tint)
@@ -275,11 +300,11 @@ struct StudyView: View {
                     .foregroundStyle(tint)
             }
 
-            Text("No Cards Yet")
+            Text("studyView.emptyState.title")
                 .font(.system(.title2, design: .rounded, weight: .bold))
 
             Text(
-                "Add a few cards to this set, then come back here to start studying."
+                "studyView.emptyState.message"
             )
             .font(.subheadline)
             .foregroundStyle(.secondary)
@@ -287,6 +312,13 @@ struct StudyView: View {
             .frame(maxWidth: 340)
         }
         .padding(30)
+    }
+
+    private var finishedMessage: String {
+        String(
+            localized: "studyView.finished.message",
+            defaultValue: "You reviewed all \(total) cards in this round."
+        )
     }
 
     private var finishedView: some View {
@@ -313,10 +345,10 @@ struct StudyView: View {
             }
 
             VStack(spacing: 6) {
-                Text("Deck Complete")
+                Text("studyView.finished.title")
                     .font(.system(size: 30, weight: .bold, design: .rounded))
 
-                Text("You reviewed all \(total) cards in this round.")
+                Text(verbatim: finishedMessage)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -325,7 +357,10 @@ struct StudyView: View {
                 Button {
                     start(shuffled: false)
                 } label: {
-                    Label("Study Again", systemImage: "arrow.counterclockwise")
+                    Label(
+                        "studyView.finished.studyAgain",
+                        systemImage: "arrow.counterclockwise"
+                    )
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(tint)
@@ -333,7 +368,7 @@ struct StudyView: View {
                 Button {
                     start(shuffled: true)
                 } label: {
-                    Label("Shuffle", systemImage: "shuffle")
+                    Label("studyView.finished.shuffle", systemImage: "shuffle")
                 }
                 .buttonStyle(.bordered)
             }
@@ -400,7 +435,7 @@ private struct StudyCard: View {
         ZStack {
             face(
                 side: card.front,
-                label: "Front",
+                label: "studyView.card.front",
                 symbol: "questionmark",
                 tint: tint
             )
@@ -408,7 +443,7 @@ private struct StudyCard: View {
 
             face(
                 side: card.back,
-                label: "Back",
+                label: "studyView.card.back",
                 symbol: "sparkles",
                 tint: KotoeTheme.success
             )
@@ -437,7 +472,7 @@ private struct StudyCard: View {
 
     private func face(
         side: FlashcardSide?,
-        label: String,
+        label: LocalizedStringKey,
         symbol: String,
         tint: Color
     ) -> some View {
@@ -447,8 +482,9 @@ private struct StudyCard: View {
                     Image(systemName: symbol)
                         .font(.system(size: 10, weight: .bold))
 
-                    Text(label.uppercased())
+                    Text(label)
                         .font(.caption2.weight(.bold))
+                        .textCase(.uppercase)
                         .tracking(1.2)
                 }
                 .foregroundStyle(tint)
@@ -468,7 +504,7 @@ private struct StudyCard: View {
 
             HStack(spacing: 6) {
                 Image(systemName: "hand.tap")
-                Text("Tap to flip")
+                Text("studyView.card.tapToFlip")
             }
             .font(.caption2)
             .foregroundStyle(.tertiary)

@@ -441,7 +441,7 @@ extension View {
 
 struct SectionHeader: View {
 
-    let title: String
+    let title: LocalizedStringKey
     let systemImage: String
 
     var body: some View {
@@ -449,8 +449,9 @@ struct SectionHeader: View {
             Image(systemName: systemImage)
                 .font(.system(size: 11, weight: .semibold))
 
-            Text(title.uppercased())
+            Text(title)
                 .font(.caption.weight(.bold))
+                .textCase(.uppercase)
                 .tracking(0.9)
         }
         .foregroundStyle(.secondary)

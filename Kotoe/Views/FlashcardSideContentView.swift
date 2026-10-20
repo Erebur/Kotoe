@@ -58,11 +58,17 @@ extension FlashcardSide {
         switch contentType {
         case .richText:
             let text = plainText.trimmingCharacters(in: .whitespacesAndNewlines)
-            return text.isEmpty ? "Empty" : text
+            return text.isEmpty
+                ? String(localized: "shared.content.empty")
+                : text
         case .image:
-            return imageData == nil ? "Empty image" : "Image"
+            return imageData == nil
+                ? String(localized: "sideContent.summary.emptyImage")
+                : String(localized: "shared.contentType.image")
         case .drawing:
-            return drawingData == nil ? "Empty drawing" : "Drawing"
+            return drawingData == nil
+                ? String(localized: "sideContent.summary.emptyDrawing")
+                : String(localized: "shared.contentType.drawing")
         }
     }
 
@@ -157,9 +163,9 @@ extension FlashcardContentType {
 
     var displayName: String {
         switch self {
-        case .richText: return "Text"
-        case .image: return "Image"
-        case .drawing: return "Drawing"
+        case .richText: return String(localized: "shared.contentType.text")
+        case .image: return String(localized: "shared.contentType.image")
+        case .drawing: return String(localized: "shared.contentType.drawing")
         }
     }
 
@@ -233,7 +239,7 @@ struct FlashcardSideContentView: View {
     }
 
     private var placeholder: some View {
-        Label("Empty", systemImage: "square.dashed")
+        Label("shared.content.empty", systemImage: "square.dashed")
             .font(.title3)
             .foregroundStyle(.tertiary)
     }
@@ -532,15 +538,15 @@ struct DrawingEditorView: View {
     var body: some View {
         NavigationStack {
             canvas
-                .navigationTitle("Drawing")
+                .navigationTitle("drawingEditor.navigation.title")
                 .inlineNavigationBarTitle()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { dismiss() }
+                        Button("shared.actions.cancel") { dismiss() }
                             .keyboardShortcut(.cancelAction)
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") {
+                        Button("shared.actions.done") {
                             onSave(drawing)
                             dismiss()
                         }
@@ -567,9 +573,12 @@ struct DrawingEditorView: View {
             Divider()
 
             HStack(spacing: 14) {
-                ColorPicker("Pen Color", selection: $inkColor)
-                    .labelsHidden()
-                    .help("Pen color")
+                ColorPicker(
+                    "drawingEditor.toolbar.penColor",
+                    selection: $inkColor
+                )
+                .labelsHidden()
+                .help("drawingEditor.toolbar.penColorHelp")
 
                 HStack(spacing: 8) {
                     Image(systemName: "pencil.tip")
@@ -579,7 +588,7 @@ struct DrawingEditorView: View {
                     Slider(value: $lineWidth, in: 1...24)
                         .frame(width: 150)
 
-                    Text("\(Int(lineWidth.rounded())) pt")
+                    Text(verbatim: lineWidthLabel)
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                         .frame(width: 40, alignment: .leading)
@@ -590,14 +599,17 @@ struct DrawingEditorView: View {
                 Button {
                     undo()
                 } label: {
-                    Label("Undo", systemImage: "arrow.uturn.backward")
+                    Label(
+                        "drawingEditor.toolbar.undo",
+                        systemImage: "arrow.uturn.backward"
+                    )
                 }
                 .disabled(drawing.strokes.isEmpty)
 
                 Button(role: .destructive) {
                     drawing = PKDrawing()
                 } label: {
-                    Label("Clear", systemImage: "trash")
+                    Label("drawingEditor.toolbar.clear", systemImage: "trash")
                 }
                 .disabled(drawing.strokes.isEmpty)
             }
@@ -614,6 +626,13 @@ struct DrawingEditorView: View {
     }
 
     #if os(macOS)
+    private var lineWidthLabel: String {
+        String(
+            localized: "drawingEditor.toolbar.lineWidth",
+            defaultValue: "\(Int(lineWidth.rounded())) pt"
+        )
+    }
+
     private func undo() {
         guard !drawing.strokes.isEmpty else { return }
         drawing = PKDrawing(strokes: Array(drawing.strokes.dropLast()))

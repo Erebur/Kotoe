@@ -12,6 +12,7 @@ struct ContentView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.locale) private var locale
 
     @Query(
         filter: #Predicate<Subject> { !$0.isArchived },
@@ -48,6 +49,8 @@ struct ContentView: View {
                             }
                             .transition(.opacity)
                         }
+
+                        disclaimer
                     }
                     .padding(.horizontal, 22)
                     .padding(.top, 18)
@@ -64,19 +67,19 @@ struct ContentView: View {
                     Button {
                         showingNewSubject = true
                     } label: {
-                        Label("New Subject", systemImage: "plus")
+                        Label("contentView.toolbar.newSubject", systemImage: "plus")
                     }
                     .keyboardShortcut("n", modifiers: .command)
-                    .help("Create a new subject")
+                    .help("contentView.toolbar.createSubjectHelp")
                 }
             }
             .sheet(isPresented: $showingNewSubject) {
                 CreateItemSheet(
-                    title: "New Subject",
-                    prompt: "A subject groups related flashcard sets, like a course or a language.",
+                    title: "contentView.newSubjectSheet.title",
+                    prompt: "contentView.newSubjectSheet.prompt",
                     systemImage: "books.vertical.fill",
-                    placeholder: "Subject name",
-                    actionTitle: "Create",
+                    placeholder: "contentView.newSubjectSheet.namePlaceholder",
+                    actionTitle: "contentView.newSubjectSheet.create",
                     name: $newSubjectName,
                     onCreate: createSubject,
                     onCancel: closeSheet
@@ -87,20 +90,30 @@ struct ContentView: View {
                 appearanceEditor(for: subject)
             }
             .confirmationDialog(
-                "Delete Subject?",
+                "contentView.deleteSubjectDialog.title",
                 isPresented: deleteConfirmationBinding,
                 titleVisibility: .visible,
                 presenting: subjectPendingDeletion
             ) { subject in
-                Button("Delete \(subject.name)", role: .destructive) {
+                Button(
+                    String(
+                        localized: "contentView.deleteSubjectDialog.delete",
+                        defaultValue: "Delete \(subject.name)"
+                    ),
+                    role: .destructive
+                ) {
                     delete(subject)
                 }
-                Button("Cancel", role: .cancel) {
+                Button("shared.actions.cancel", role: .cancel) {
                     subjectPendingDeletion = nil
                 }
             } message: { subject in
                 Text(
-                    "\(subject.cardCount) cards in \(subject.sortedFlashcardSets.count) sets will be deleted. This can't be undone."
+                    String(
+                        localized: "contentView.deleteSubjectDialog.message",
+                        defaultValue:
+                            "\(subject.cardCount) cards in \(subject.sortedFlashcardSets.count) sets will be deleted. This can't be undone."
+                    )
                 )
             }
             .animation(.snappy(duration: 0.35), value: subjects.count)
@@ -111,7 +124,7 @@ struct ContentView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("Your Library")
+            Text("contentView.header.title")
                 .font(.system(size: 34, weight: .bold, design: .rounded))
 
             Text(summary)
@@ -122,7 +135,9 @@ struct ContentView: View {
 
     private var summary: String {
         guard !subjects.isEmpty else {
-            return "Create a subject to organize your flashcard sets."
+            return String(
+                localized: "contentView.header.emptySummary"
+            )
         }
 
         let setCount = subjects.reduce(0) {
@@ -133,15 +148,24 @@ struct ContentView: View {
         }
 
         return [
-            pluralized(subjects.count, "subject"),
-            pluralized(setCount, "set"),
-            pluralized(cardCount, "card"),
+            LocalizedCounts.subjects(subjects.count),
+            LocalizedCounts.sets(setCount),
+            LocalizedCounts.cards(cardCount),
         ]
         .joined(separator: " · ")
     }
 
-    private func pluralized(_ count: Int, _ noun: String) -> String {
-        "\(count) \(noun)\(count == 1 ? "" : "s")"
+    // MARK: - Footer
+
+    @ViewBuilder
+    private var disclaimer: some View {
+        if locale.language.languageCode?.identifier != "en" {
+            Text("contentView.footer.disclaimer")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 6)
+        }
     }
 
     // MARK: - Subject Cards
@@ -158,8 +182,15 @@ struct ContentView: View {
         #endif
     }
 
+    private func subjectSummary(for subject: Subject) -> String {
+        [
+            LocalizedCounts.sets(subject.sortedFlashcardSets.count),
+            LocalizedCounts.cards(subject.cardCount),
+        ]
+        .joined(separator: " · ")
+    }
+
     private func subjectCard(for subject: Subject) -> some View {
-        let sets = subject.sortedFlashcardSets
         let style = subject.style
 
         return NavigationLink {
@@ -177,12 +208,10 @@ struct ContentView: View {
                         .font(.headline)
                         .lineLimit(1)
 
-                    Text(
-                        "\(pluralized(sets.count, "set")) · \(pluralized(subject.cardCount, "card"))"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    Text(verbatim: subjectSummary(for: subject))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
 
                 Spacer(minLength: 8)
@@ -202,7 +231,7 @@ struct ContentView: View {
             Button {
                 customizingSubject = subject
             } label: {
-                Label("Change Icon…", systemImage: "paintpalette")
+                Label("shared.actions.changeIcon", systemImage: "paintpalette")
             }
 
             Divider()
@@ -210,7 +239,10 @@ struct ContentView: View {
             Button(role: .destructive) {
                 subjectPendingDeletion = subject
             } label: {
-                Label("Delete Subject", systemImage: "trash")
+                Label(
+                    "contentView.contextMenu.deleteSubject",
+                    systemImage: "trash"
+                )
             }
         }
         .transition(.scale(scale: 0.96).combined(with: .opacity))
@@ -247,11 +279,11 @@ struct ContentView: View {
             }
 
             VStack(spacing: 6) {
-                Text("Build Your First Subject")
+                Text("contentView.emptyState.title")
                     .font(.system(.title2, design: .rounded, weight: .bold))
 
                 Text(
-                    "Subjects keep your sets organized — one for each course, language, or topic you're learning."
+                    "contentView.emptyState.message"
                 )
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -262,7 +294,7 @@ struct ContentView: View {
             Button {
                 showingNewSubject = true
             } label: {
-                Label("New Subject", systemImage: "plus")
+                Label("contentView.emptyState.newSubject", systemImage: "plus")
                     .padding(.horizontal, 6)
             }
             .buttonStyle(.borderedProminent)
@@ -278,8 +310,12 @@ struct ContentView: View {
 
     private func appearanceEditor(for subject: Subject) -> some View {
         AppearanceEditor(
-            title: "Subject Appearance",
-            subtitle: "Choose the icon and color that represent \(subject.name).",
+            title: "contentView.appearanceEditor.title",
+            subtitle: String(
+                localized: "contentView.appearanceEditor.subtitle",
+                defaultValue:
+                    "Choose the icon and color that represent \(subject.name)."
+            ),
             symbols: KotoeTheme.subjectSymbols,
             defaultSymbol: KotoeTheme.style(for: subject.name).symbol,
             defaultTintIndex: subject.effectiveTintIndex,

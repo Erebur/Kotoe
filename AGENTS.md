@@ -27,6 +27,7 @@ repetition scheduling, archiving, import/export, search, and tests do not.
 | Swift | 5.0 language mode |
 | Xcode | 27.1 (`objectVersion = 77`) |
 | Bundle ID | `com.erebur.kotoe`, team `XMGF5HVWMW` |
+| Localization | String Catalog; English source plus de, es, fr, ja |
 | Dependencies | None. No SPM packages, CocoaPods, or generated code. |
 | Libraries used | SwiftUI, SwiftData, PencilKit, PhotosUI |
 
@@ -222,6 +223,7 @@ the worktree commits should keep their branch history in the main checkout.
 Kotoe/
   FlashApp.swift                 @main app, SwiftData ModelContainer
   ContentView.swift              Subject list (root screen)
+  Localizable.xcstrings          UI copy for en, de, es, fr, ja
   Models/
     Subject.swift                top level: subject
     FlashcardSet.swift           flashcards belonging to a subject
@@ -239,6 +241,7 @@ Kotoe/
       Theme.swift                brand colors, card surfaces, shared UI pieces
       CreateItemSheet.swift      shared "create subject / create set" prompt
       AppearanceEditor.swift     icon + color picker for subjects and sets
+      LocalizedCounts.swift      pluralized subject/set/card counts
 ```
 
 ## Data model
@@ -274,6 +277,51 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
 - Side order in `Flashcard.sides` is not meaningful — always use `front` /
   `back` or `setFront` / `setBack`.
 
+## Localization
+
+- All UI copy lives in `Kotoe/Localizable.xcstrings`. The project sets
+  `LOCALIZATION_PREFERS_STRING_CATALOGS = YES`; the catalog's source language is
+  English and it ships German, Spanish, French, and Japanese. Add every new key
+  to all five languages, otherwise the string falls back to English.
+- **Keys use `{view}.{section}.{enShorthand}`**, e.g.
+  `contentView.emptyState.title`, `studyView.progress.cardsLeft`,
+  `appearanceEditor.footer.reset`. The first segment is the screen or shared
+  group (`contentView`, `subjectView`, `studyView`, `setEditView`,
+  `cardEditor`, `sideEditor`, `sideContent`, `drawingEditor`,
+  `appearanceEditor`, `shared`), the second the area of that screen, and the
+  last a camelCase shorthand of the English text. Reuse a key only when the
+  English wording and meaning are identical; otherwise add a new key. Never use
+  the English sentence itself as the key.
+- Xcode compiles the catalog into per-language `Localizable.strings` and
+  `Localizable.stringsdict` files at build time. No `.lproj` folders are checked
+  in. `knownRegions` in `project.pbxproj` lists en, de, es, fr, ja, Base; keep it
+  in sync when adding a language.
+- SwiftUI `Text`, `Label`, `Button`, `TextField`, `SectionHeader`, `.help`,
+  `navigationTitle`, and `confirmationDialog` take a `LocalizedStringKey`, so a
+  literal key localizes automatically. When a key needs arguments, pass the
+  English text as `defaultValue` so the placeholder is filled:
+  `String(localized: "studyView.progress.learned", defaultValue: "\(known) of \(total) learned")`.
+  Store the result in a `String` and render it with `Text(verbatim:)`; plain
+  `Text(someString)` is not localized. Helper views that show copy take
+  `LocalizedStringKey` (as in `CreateItemSheet`, `SectionHeader`,
+  `SideEditorSection`) or a pre-localized `String` (`AppearanceEditor.subtitle`).
+- Counts use plural variations keyed by name, not by format string:
+  `LocalizedCounts.subjects/sets/cards` map to `shared.counts.subjects`,
+  `shared.counts.sets`, `shared.counts.cards`, and `StudyView` uses
+  `studyView.progress.cardsLeft`. Their values keep the `%lld` placeholder
+  (counts format with `%lld`; `String` arguments use `%@`).
+- If a translation does not appear, check that the key in the catalog matches
+  the literal passed in Swift exactly, and mirror a `LocalizedStringKey` to
+  confirm the key it resolves to.
+- **All non-English translations are machine translated.** The disclaimer is a
+  faint footer at the bottom of the library screen (`ContentView.disclaimer`),
+  shown only when the app language is not English. Keep it until the
+  translations get a professional review, and keep it visible when adding a
+  language.
+- Localize picker options, help text, accessibility labels, and empty-state
+  copy too. SF Symbol names, user-entered names, and the `Kōtoe` brand stay as
+  they are.
+
 ## Conventions
 
 - 4-space indentation, roughly 80-column wrapping (SwiftFormat-like style:
@@ -288,6 +336,8 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
   date comment. Match the surrounding files.
 - Prefer the shared helpers in `Views/Helper/` over new one-offs; extend
   `PlatformModifiers.swift` when a modifier differs per platform.
+- New user-facing copy goes through `Localizable.xcstrings` with all five
+  languages; see **Localization** before adding a string.
 - Subject/set appearance is edited through `AppearanceEditor`; render icons with
   `model.style` and tint card/background surfaces with `style.tint`
   (`cardSurface(tint:)`, `AmbientBackground(tint:)`) instead of hardcoding
@@ -341,6 +391,8 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
   `SubjectView.swift`.
 - Change icon/color choices or the appearance UI: `Theme.swift`
   (`subjectSymbols`, `setSymbols`, `palette`) and `AppearanceEditor.swift`.
+- Change UI copy or add a language: `Kotoe/Localizable.xcstrings`, plus
+  `LocalizedCounts.swift` for plural counts; see **Localization**.
 
 ## Known gaps (safe next steps)
 
@@ -348,7 +400,9 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
   review intervals, due dates, or per-card history.
 - No archive UI despite `isArchived` plumbing; no reordering of subjects/sets
   (only cards can be moved).
-- No import/export (CSV/Anki), search, tags, or localization (English only).
+- No import/export (CSV/Anki), search, or tags.
+- Non-English UI strings are machine translated and have not been reviewed by
+  native speakers; the in-app disclaimer is the only acknowledgement of this.
 - Rich text is stored as RTF but edited and rendered as plain text.
 - No error UI when the model container or CloudKit sync fails
   (`fatalError` on container creation, `print` on save).

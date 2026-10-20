@@ -58,19 +58,19 @@ struct SubjectView: View {
                 Button {
                     showingNewSet = true
                 } label: {
-                    Label("Add Set", systemImage: "plus")
+                    Label("subjectView.toolbar.addSet", systemImage: "plus")
                 }
                 .keyboardShortcut("n", modifiers: .command)
-                .help("Create a new flashcard set")
+                .help("subjectView.toolbar.createSetHelp")
             }
         }
         .sheet(isPresented: $showingNewSet) {
             CreateItemSheet(
-                title: "New Flashcard Set",
-                prompt: "Sets keep a handful of related cards together, like one chapter or topic.",
+                title: "subjectView.newSetSheet.title",
+                prompt: "subjectView.newSetSheet.prompt",
                 systemImage: "rectangle.stack.fill",
-                placeholder: "Set name",
-                actionTitle: "Create",
+                placeholder: "subjectView.newSetSheet.namePlaceholder",
+                actionTitle: "subjectView.newSetSheet.create",
                 tint: subject.style.tint,
                 name: $newSetName,
                 onCreate: createSet,
@@ -89,20 +89,30 @@ struct SubjectView: View {
             setAppearanceEditor(for: set)
         }
         .confirmationDialog(
-            "Delete Set?",
+            "subjectView.deleteSetDialog.title",
             isPresented: deleteConfirmationBinding,
             titleVisibility: .visible,
             presenting: setPendingDeletion
         ) { set in
-            Button("Delete \(set.name)", role: .destructive) {
+            Button(
+                String(
+                    localized: "subjectView.deleteSetDialog.delete",
+                    defaultValue: "Delete \(set.name)"
+                ),
+                role: .destructive
+            ) {
                 delete(set)
             }
-            Button("Cancel", role: .cancel) {
+            Button("shared.actions.cancel", role: .cancel) {
                 setPendingDeletion = nil
             }
         } message: { set in
             Text(
-                "\(set.sortedFlashcards.count) cards will be deleted. This can't be undone."
+                String(
+                    localized: "subjectView.deleteSetDialog.message",
+                    defaultValue:
+                        "\(set.sortedFlashcards.count) cards will be deleted. This can't be undone."
+                )
             )
         }
         .onChange(of: subject.name) {
@@ -142,12 +152,15 @@ struct SubjectView: View {
                 }
             }
             .buttonStyle(PressableCardStyle())
-            .help("Change icon and color")
+            .help("shared.actions.changeIconColorHelp")
 
             VStack(alignment: .leading, spacing: 6) {
                 if isRenaming {
                     HStack(spacing: 8) {
-                        TextField("Subject name", text: $draftName)
+                        TextField(
+                            "subjectView.header.renamePlaceholder",
+                            text: $draftName
+                        )
                             .textFieldStyle(.plain)
                             .font(
                                 .system(
@@ -169,7 +182,7 @@ struct SubjectView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(trimmedDraftName.isEmpty)
-                        .help("Save name")
+                        .help("shared.actions.saveNameHelp")
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
@@ -215,18 +228,18 @@ struct SubjectView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .help("Rename subject")
+                        .help("subjectView.header.renameHelp")
                     }
                 }
 
                 HStack(spacing: 13) {
                     StatLabel(
-                        text: pluralized(sets.count, "set"),
+                        text: LocalizedCounts.sets(sets.count),
                         systemImage: "square.stack.3d.up.fill"
                     )
 
                     StatLabel(
-                        text: pluralized(allCards.count, "card"),
+                        text: LocalizedCounts.cards(allCards.count),
                         systemImage: "rectangle.on.rectangle.angled"
                     )
                 }
@@ -237,6 +250,20 @@ struct SubjectView: View {
     }
 
     // MARK: - Study All
+
+    private var studyAllSubtitle: String {
+        guard !allCards.isEmpty else {
+            return String(localized: "subjectView.studyAll.emptySubtitle")
+        }
+
+        let cardCount = LocalizedCounts.cards(allCards.count)
+        let setCount = LocalizedCounts.sets(sets.count)
+
+        return String(
+            localized: "subjectView.studyAll.subtitle",
+            defaultValue: "\(cardCount) across \(setCount)"
+        )
+    }
 
     private var studyAllCard: some View {
         NavigationLink {
@@ -259,16 +286,12 @@ struct SubjectView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Study All")
+                    Text("subjectView.studyAll.title")
                         .font(.headline)
 
-                    Text(
-                        allCards.isEmpty
-                            ? "Add cards to a set to get started"
-                            : "\(pluralized(allCards.count, "card")) across \(pluralized(sets.count, "set"))"
-                    )
-                    .font(.subheadline)
-                    .opacity(0.85)
+                    Text(verbatim: studyAllSubtitle)
+                        .font(.subheadline)
+                        .opacity(0.85)
                 }
 
                 Spacer(minLength: 8)
@@ -299,10 +322,13 @@ struct SubjectView: View {
 
     private var notesCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Notes", systemImage: "note.text")
+            SectionHeader(
+                title: "shared.section.notes",
+                systemImage: "note.text"
+            )
 
             TextField(
-                "Write down goals, reminders, or context for this subject…",
+                "subjectView.notes.placeholder",
                 text: notesBinding,
                 axis: .vertical
             )
@@ -328,7 +354,7 @@ struct SubjectView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 SectionHeader(
-                    title: "Flashcard Sets",
+                    title: "subjectView.sets.sectionTitle",
                     systemImage: "square.stack.3d.up.fill"
                 )
 
@@ -337,7 +363,7 @@ struct SubjectView: View {
                 Button {
                     showingNewSet = true
                 } label: {
-                    Label("New Set", systemImage: "plus")
+                    Label("subjectView.sets.newSet", systemImage: "plus")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -375,7 +401,9 @@ struct SubjectView: View {
                             .lineLimit(1)
 
                         Text(
-                            pluralized(set.sortedFlashcards.count, "card")
+                            LocalizedCounts.cards(
+                                set.sortedFlashcards.count
+                            )
                         )
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -395,19 +423,22 @@ struct SubjectView: View {
                 Button {
                     customizingSet = set
                 } label: {
-                    Label("Change Icon…", systemImage: "paintpalette")
+                    Label(
+                        "shared.actions.changeIcon",
+                        systemImage: "paintpalette"
+                    )
                 }
 
                 Button {
                     editingSet = set
                 } label: {
-                    Label("Edit Cards", systemImage: "pencil")
+                    Label("subjectView.setRow.editCards", systemImage: "pencil")
                 }
 
                 Button(role: .destructive) {
                     setPendingDeletion = set
                 } label: {
-                    Label("Delete Set", systemImage: "trash")
+                    Label("subjectView.setRow.deleteSet", systemImage: "trash")
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -422,7 +453,7 @@ struct SubjectView: View {
             }
             .compactMenuStyle()
             .fixedSize()
-            .help("Set actions")
+            .help("subjectView.setRow.actionsHelp")
         }
         .cardSurface(padding: 12, tint: style.tint)
         .hoverLift()
@@ -430,19 +461,22 @@ struct SubjectView: View {
             Button {
                 customizingSet = set
             } label: {
-                Label("Change Icon…", systemImage: "paintpalette")
+                Label(
+                    "shared.actions.changeIcon",
+                    systemImage: "paintpalette"
+                )
             }
 
             Button {
                 editingSet = set
             } label: {
-                Label("Edit Cards", systemImage: "pencil")
+                Label("subjectView.setRow.editCards", systemImage: "pencil")
             }
 
             Button(role: .destructive) {
                 setPendingDeletion = set
             } label: {
-                Label("Delete Set", systemImage: "trash")
+                Label("subjectView.setRow.deleteSet", systemImage: "trash")
             }
         }
         .transition(.scale(scale: 0.97).combined(with: .opacity))
@@ -457,11 +491,11 @@ struct SubjectView: View {
                     .font(.system(size: 28))
                     .foregroundStyle(subject.style.tint)
 
-                Text("Create Your First Set")
+                Text("subjectView.emptyState.title")
                     .font(.headline)
 
                 Text(
-                    "A set holds a small group of cards. Add one, then fill it with front and back content."
+                    "subjectView.emptyState.message"
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -492,8 +526,12 @@ struct SubjectView: View {
 
     private var subjectAppearanceEditor: some View {
         AppearanceEditor(
-            title: "Subject Appearance",
-            subtitle: "Choose the icon and color for \(subject.name).",
+            title: "subjectView.subjectAppearanceEditor.title",
+            subtitle: String(
+                localized: "subjectView.subjectAppearanceEditor.subtitle",
+                defaultValue:
+                    "Choose the icon and color for \(subject.name)."
+            ),
             symbols: KotoeTheme.subjectSymbols,
             defaultSymbol: KotoeTheme.style(for: subject.name).symbol,
             defaultTintIndex: subject.effectiveTintIndex,
@@ -519,8 +557,11 @@ struct SubjectView: View {
 
     private func setAppearanceEditor(for set: FlashcardSet) -> some View {
         AppearanceEditor(
-            title: "Set Appearance",
-            subtitle: "Choose the icon and color for \(set.name).",
+            title: "subjectView.appearanceEditor.title",
+            subtitle: String(
+                localized: "subjectView.appearanceEditor.subtitle",
+                defaultValue: "Choose the icon and color for \(set.name)."
+            ),
             symbols: KotoeTheme.setSymbols,
             defaultSymbol: "rectangle.stack.fill",
             defaultTintIndex: set.effectiveTintIndex,
@@ -628,9 +669,5 @@ struct SubjectView: View {
     private func closeSheet() {
         newSetName = ""
         showingNewSet = false
-    }
-
-    private func pluralized(_ count: Int, _ noun: String) -> String {
-        "\(count) \(noun)\(count == 1 ? "" : "s")"
     }
 }
