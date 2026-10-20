@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="backFill" x1="0" y1="0" x2="0.65" y2="1">
+      <stop offset="0" stop-color="#D85A18"/>
+      <stop offset="1" stop-color="#A8360B"/>
+    </linearGradient>
+  </defs>
+  <g transform="rotate(10 540 440)">
+    <rect x="292" y="238" width="458" height="512" rx="56" fill="url(#backFill)"/>
+    <rect x="296" y="242" width="450" height="504" rx="52" fill="none" stroke="#FFB56B" stroke-opacity="0.24" stroke-width="3"/>
+  </g>
+</svg>

@@ -1,24 +1,76 @@
 {
-  "fill" : {
-    "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
-  },
+  "features" : [
+    "refractivity",
+    "specular-location"
+  ],
+  "fill-specializations" : [
+    {
+      "value" : {
+        "automatic-gradient" : "extended-srgb:0.91373,0.34510,0.05882,1.00000"
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : {
+        "automatic-gradient" : "extended-srgb:0.54118,0.18039,0.03137,1.00000"
+      }
+    }
+  ],
   "groups" : [
     {
+      "name" : "Accent",
       "layers" : [
         {
           "glass" : true,
-          "image-name" : "SVG Image.svg",
-          "name" : "SVG Image"
+          "image-name" : "Spark.svg",
+          "name" : "Spark"
+        }
+      ],
+      "shadow" : {
+        "kind" : "layer-color",
+        "opacity" : 0.4
+      },
+      "specular" : "inside",
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.1
+      },
+      "refractivity" : {
+        "enabled" : true,
+        "depth" : 0.35,
+        "strength" : 0.25
+      }
+    },
+    {
+      "name" : "Flashcards",
+      "layers" : [
+        {
+          "glass" : true,
+          "image-name" : "Front Card.svg",
+          "name" : "Front Card"
+        },
+        {
+          "glass" : true,
+          "image-name" : "Back Card.svg",
+          "name" : "Back Card"
         }
       ],
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.5
+        "opacity" : 0.45
       },
+      "specular" : "outside",
+      "lighting" : "combined",
       "translucency" : {
         "enabled" : true,
-        "value" : 0.3
-      }
+        "value" : 0.22
+      },
+      "refractivity" : {
+        "enabled" : true,
+        "depth" : 0.55,
+        "strength" : 0.35
+      },
+      "blur-material" : 0.25
     }
   ],
   "supported-platforms" : {
