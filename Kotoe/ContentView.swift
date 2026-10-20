@@ -1,10 +1,10 @@
-import SwiftData
 //
 //  ContentView.swift
 //  Flash
 //
 //  Created by Simon Weber on 18.10.26.
 //
+import SwiftData
 import SwiftUI
 
 struct ContentView: View {
@@ -33,15 +33,19 @@ struct ContentView: View {
                 } else {
                     List {
                         ForEach(subjects) { subject in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(subject.name)
-                                    .font(.headline)
+                            NavigationLink {
+                                SubjectView(subject: subject)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(subject.name)
+                                        .font(.headline)
 
-                                Text("\((subject.flashcardSets ?? []).count) flashcard sets")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                                    Text("\((subject.flashcardSets ?? []).count) flashcard sets")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.vertical, 4)
                             }
-                            .padding(.vertical, 4)
                         }
                         .onDelete(perform: deleteSubjects)
                     }
@@ -55,10 +59,6 @@ struct ContentView: View {
                     } label: {
                         Label("Add Subject", systemImage: "plus")
                     }
-                }
-
-                ToolbarItem(placement: .automatic) {
-                    EditButton()
                 }
             }
             .sheet(isPresented: $showingNewSubject) {
@@ -78,7 +78,6 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("New Subject")
-            //            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
