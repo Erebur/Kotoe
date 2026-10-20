@@ -171,6 +171,51 @@ Notes:
   `xcrun simctl io booted screenshot "$DEMO/shot.png"`. Make the target screen
   the root in the copy for the same reason.
 
+## Worktree workflow
+
+OpenCode sessions may run in a git worktree under
+`~/.local/share/opencode/worktree/...`. The worktree shares history with the
+main checkout but usually has a detached HEAD. When the work is finished,
+transfer it to the main checkout instead of leaving it in the worktree.
+
+1. From the worktree, commit everything and note the SHA(s):
+
+```sh
+WORKTREE=$(pwd)
+git add -A
+git commit -m "Describe the change"
+git rev-parse HEAD
+```
+
+If the work spans several commits, list them with `git log --oneline` and
+cherry-pick them in order.
+
+2. Cherry-pick into the main checkout:
+
+```sh
+MAIN=/Users/erebur/Developer/Kotoe
+git -C "$MAIN" cherry-pick <SHA>
+```
+
+3. Verify the main checkout builds and the log/status look right:
+
+```sh
+git -C "$MAIN" log --oneline -3
+git -C "$MAIN" status
+```
+
+4. Close the worktree. If the OpenCode session is running inside it, move the
+   session to the main checkout first (the `session_move` tool); removing a
+   worktree while a session uses it breaks that session. Then remove it:
+
+```sh
+git -C "$MAIN" worktree remove "$WORKTREE"
+git -C "$MAIN" worktree list
+```
+
+Prefer `cherry-pick` for one-off transfers. Use `git merge <SHA>` instead when
+the worktree commits should keep their branch history in the main checkout.
+
 ## Repository layout
 
 ```
