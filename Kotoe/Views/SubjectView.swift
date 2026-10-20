@@ -71,6 +71,7 @@ struct SubjectView: View {
                 systemImage: "rectangle.stack.fill",
                 placeholder: "Set name",
                 actionTitle: "Create",
+                tint: subject.style.tint,
                 name: $newSetName,
                 onCreate: createSet,
                 onCancel: closeSheet

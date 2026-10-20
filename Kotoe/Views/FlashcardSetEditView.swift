@@ -29,6 +29,10 @@ struct FlashcardSetEditView: View {
         flashcardSet.sortedFlashcards
     }
 
+    private var tint: Color {
+        flashcardSet.style.tint
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
@@ -47,21 +51,23 @@ struct FlashcardSetEditView: View {
                     .frame(maxWidth: .infinity)
                 }
             }
+            #if os(macOS)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                sheetFooter
+            }
+            #endif
             .clearInitialFocusOnMac()
             .navigationTitle("Edit Set")
             .inlineNavigationBarTitle()
             .navigationDestination(for: Flashcard.self) { card in
-                FlashcardEditorView(card: card)
+                FlashcardEditorView(card: card, tint: tint)
             }
             .toolbar {
+                #if os(iOS)
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        finishRenaming()
-                        try? modelContext.save()
-                        dismiss()
-                    }
-                    .keyboardShortcut(.defaultAction)
+                    doneButton
                 }
+                #endif
             }
             .onChange(of: flashcardSet.name) {
                 flashcardSet.modifiedAt = .now
@@ -70,8 +76,37 @@ struct FlashcardSetEditView: View {
                 appearanceEditor
             }
         }
+        .tint(tint)
         .editorSheetSize(width: 680, height: 740)
     }
+
+    private var doneButton: some View {
+        Button("Done") {
+            finishRenaming()
+            try? modelContext.save()
+            dismiss()
+        }
+        .keyboardShortcut(.defaultAction)
+    }
+
+    #if os(macOS)
+    /// The native macOS sheet action bar does not pick up the tinted
+    /// background, so the sheet uses an in-content footer instead.
+    private var sheetFooter: some View {
+        HStack {
+            Spacer()
+
+            doneButton
+                .buttonStyle(.borderedProminent)
+                .tint(tint)
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 12)
+        .overlay(alignment: .top) {
+            Divider()
+        }
+    }
+    #endif
 
     // MARK: - Header
 
@@ -125,7 +160,7 @@ struct FlashcardSetEditView: View {
                         } label: {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 17))
-                                .foregroundStyle(KotoeTheme.accent)
+                                .foregroundStyle(tint)
                         }
                         .buttonStyle(.plain)
                         .disabled(trimmedDraftName.isEmpty)
@@ -146,7 +181,7 @@ struct FlashcardSetEditView: View {
                             style: .continuous
                         )
                         .strokeBorder(
-                            KotoeTheme.accent.opacity(0.45),
+                            tint.opacity(0.45),
                             lineWidth: 1
                         )
                     )
@@ -241,7 +276,7 @@ struct FlashcardSetEditView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .tint(KotoeTheme.accent)
+                .tint(tint)
             }
 
             if cards.isEmpty {
@@ -253,6 +288,7 @@ struct FlashcardSetEditView: View {
                     ReorderableCardRow(
                         card: card,
                         index: index,
+                        tint: tint,
                         onMoveUp: { move(card, by: -1) },
                         onMoveDown: { move(card, by: 1) },
                         onDelete: { delete(card) },
@@ -276,7 +312,7 @@ struct FlashcardSetEditView: View {
             VStack(spacing: 9) {
                 Image(systemName: "rectangle.badge.plus")
                     .font(.system(size: 28))
-                    .foregroundStyle(KotoeTheme.accent)
+                    .foregroundStyle(tint)
 
                 Text("Add Your First Card")
                     .font(.headline)
@@ -298,7 +334,7 @@ struct FlashcardSetEditView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(
-                        KotoeTheme.accent.opacity(0.32),
+                        tint.opacity(0.32),
                         style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
                     )
             )
@@ -462,6 +498,7 @@ private struct ReorderableCardRow: View {
 
     let card: Flashcard
     let index: Int
+    let tint: Color
     let onMoveUp: () -> Void
     let onMoveDown: () -> Void
     let onDelete: () -> Void
@@ -481,7 +518,7 @@ private struct ReorderableCardRow: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(
                     isDropTargeted
-                        ? KotoeTheme.accent
+                        ? tint
                         : Color.primary.opacity(0.3)
                 )
                 .frame(width: 28, height: 28)
@@ -497,7 +534,7 @@ private struct ReorderableCardRow: View {
         .overlay {
             if isDropTargeted {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(KotoeTheme.accent, lineWidth: 2)
+                    .strokeBorder(tint, lineWidth: 2)
             }
         }
         .dropDestination(for: String.self) { items, _ in
@@ -585,10 +622,11 @@ struct FlashcardEditorView: View {
     @Environment(\.modelContext) private var modelContext
 
     let card: Flashcard
+    var tint: Color = KotoeTheme.accent
 
     var body: some View {
         ZStack {
-            AmbientBackground()
+            AmbientBackground(tint: tint)
 
             ScrollView {
                 VStack(spacing: 18) {
@@ -597,7 +635,8 @@ struct FlashcardEditorView: View {
                             title: "Front",
                             subtitle: "The prompt you see first",
                             systemImage: "questionmark.circle.fill",
-                            tint: KotoeTheme.accent,
+                            tint: tint,
+                            accent: tint,
                             side: front
                         )
                     }
@@ -608,6 +647,7 @@ struct FlashcardEditorView: View {
                             subtitle: "The answer you reveal",
                             systemImage: "checkmark.circle.fill",
                             tint: KotoeTheme.success,
+                            accent: tint,
                             side: back
                         )
                     }
@@ -619,6 +659,7 @@ struct FlashcardEditorView: View {
             }
         }
         .clearInitialFocusOnMac()
+        .tint(tint)
         .navigationTitle("Edit Card")
         .inlineNavigationBarTitle()
         .onAppear(perform: ensureSides)
@@ -648,6 +689,7 @@ private struct SideEditorSection: View {
     let subtitle: String
     let systemImage: String
     let tint: Color
+    let accent: Color
 
     @Bindable var side: FlashcardSide
 
@@ -770,7 +812,7 @@ private struct SideEditorSection: View {
                 in: RoundedRectangle(cornerRadius: 10, style: .continuous)
             )
         }
-        .tint(KotoeTheme.accent)
+        .tint(accent)
         .onChange(of: pickerItem) { _, item in
             guard let item else { return }
 
@@ -829,7 +871,7 @@ private struct SideEditorSection: View {
             )
         }
         .buttonStyle(.plain)
-        .tint(KotoeTheme.accent)
+        .tint(accent)
         .editorCover(isPresented: $showingCanvas) {
             DrawingEditorView(initial: drawingDraft) { drawing in
                 side.updateDrawing(drawing)

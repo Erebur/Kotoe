@@ -14,6 +14,7 @@ struct CreateItemSheet: View {
     let systemImage: String
     let placeholder: String
     let actionTitle: String
+    var tint: Color = KotoeTheme.accent
 
     @Binding var name: String
 
@@ -31,7 +32,7 @@ struct CreateItemSheet: View {
             HStack(alignment: .center, spacing: 14) {
                 IconTile(
                     symbol: systemImage,
-                    tint: KotoeTheme.accent,
+                    tint: tint,
                     size: 48
                 )
 
@@ -60,7 +61,7 @@ struct CreateItemSheet: View {
                     RoundedRectangle(cornerRadius: 11, style: .continuous)
                         .strokeBorder(
                             isFocused
-                                ? KotoeTheme.accent.opacity(0.55)
+                                ? tint.opacity(0.55)
                                 : KotoeTheme.hairline,
                             lineWidth: isFocused ? 1.5 : 1
                         )
@@ -85,7 +86,7 @@ struct CreateItemSheet: View {
                 .disabled(trimmedName.isEmpty)
             }
             .controlSize(.large)
-            .tint(KotoeTheme.accent)
+            .tint(tint)
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)

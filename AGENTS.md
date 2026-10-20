@@ -70,6 +70,107 @@ There is no test target, linter, formatter, or CI configuration. The only
 verification step is a successful build for each platform you touch. Building
 for **both macOS and iOS** matters because platform-specific code paths exist.
 
+## Demo & screenshot workflow
+
+There is no preview harness. To inspect a specific screen or compare a visual
+change, build a throwaway copy of the project instead of modifying the working
+tree.
+
+1. Copy the repo to a temp directory and keep the demo build separate:
+
+```sh
+DEMO=$(mktemp -d)
+rsync -a --exclude .git ./ "$DEMO/"
+```
+
+2. In the copy, change `Kotoe/FlashApp.swift` so the target screen is the root,
+   or auto-present it with `.task` / `.onChange`. Use the existing store through
+   `@Query` for read-only screens, or an in-memory container with sample models
+   when the screen writes data. Example — open the first set editor in a sheet:
+
+```swift
+struct DemoRoot: View {
+    @Query(sort: \FlashcardSet.name) private var sets: [FlashcardSet]
+    @State private var show = false
+
+    var body: some View {
+        Color.clear
+            .sheet(isPresented: $show) {
+                if let set = sets.first {
+                    FlashcardSetEditView(flashcardSet: set)
+                }
+            }
+            .onChange(of: sets.count, initial: true) {
+                if !sets.isEmpty { show = true }
+            }
+    }
+}
+```
+
+For screens that take models directly (for example `StudyView`), create
+`Flashcard`/`FlashcardSide` objects in the demo and pass them in.
+
+3. Build the copy with its own DerivedData and run it:
+
+```sh
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+cd "$DEMO"
+xcodebuild -project "Kōtoe.xcodeproj" -scheme "Kōtoe" \
+  -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath ./dd build
+open ./dd/Build/Products/Debug/Kōtoe.app
+```
+
+4. Find the window ID and bounds with CoreGraphics. This needs no Accessibility
+   permission:
+
+```sh
+cat > "$DEMO/windows.swift" <<'EOF'
+import CoreGraphics
+
+let list = CGWindowListCopyWindowInfo(
+    [.optionOnScreenOnly, .excludeDesktopElements],
+    kCGNullWindowID
+) as? [[String: Any]] ?? []
+
+for window in list {
+    let owner = window[kCGWindowOwnerName as String] as? String ?? ""
+    if owner.contains("toe") {
+        let id = window[kCGWindowNumber as String] as? Int ?? 0
+        let name = window[kCGWindowName as String] as? String ?? ""
+        let bounds = window[kCGWindowBounds as String] as? [String: Any] ?? [:]
+        print(id, "|", name, "|", bounds)
+    }
+}
+EOF
+swift "$DEMO/windows.swift"
+```
+
+5. Capture the window, or a screen region:
+
+```sh
+screencapture -x -l <windowID> "$DEMO/shot.png"
+screencapture -x -R x,y,width,height "$DEMO/region.png"
+```
+
+`-l` captures the window even when it is covered. `-R` captures the screen, so
+bring the window to the front first. Save images outside the repo. To compare
+states, change the copy, rebuild, and capture again.
+
+Notes:
+
+- Quit other `Kōtoe` instances first
+  (`pkill -f "DerivedData/K.*toe"`). macOS keeps one instance per bundle ID,
+  so a stale build can keep the old window.
+- `osascript` clicks and keystrokes are blocked here with
+  `osascript is not allowed assistive access`. Do not try to drive the UI;
+  make the target screen the root or auto-present it.
+- Never commit the demo `FlashApp.swift`, sample data, build output, or
+  screenshots.
+- For iOS, boot a simulator and use
+  `xcrun simctl io booted screenshot "$DEMO/shot.png"`. Make the target screen
+  the root in the copy for the same reason.
+
 ## Repository layout
 
 ```
@@ -169,6 +270,10 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
   macOS, unlike `ScrollView`-based screens whose tinted backdrop shows through.
   Apply `.toolbarBackground(.hidden, for: .windowToolbar)` under
   `#if os(macOS)` to keep the titlebar consistent.
+- The native macOS sheet action bar (created by a `.confirmationAction`
+  toolbar item) does not pick up the tinted background. `FlashcardSetEditView`
+  uses an in-content `safeAreaInset` footer with its Done button on macOS and
+  keeps the native toolbar on iOS.
 - Images render through `NSImage`/`UIImage` helpers, and drawings are rendered
   in light mode so ink matches the white canvas.
 
