@@ -92,6 +92,7 @@ Kotoe/
       IconButton.swift           shared button + `if` modifier
       Theme.swift                brand colors, card surfaces, shared UI pieces
       CreateItemSheet.swift      shared "create subject / create set" prompt
+      AppearanceEditor.swift     icon + color picker for subjects and sets
 ```
 
 ## Data model
@@ -116,6 +117,11 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
 - `isArchived` and `position` exist on all levels. `sortedFlashcardSets` and
   `sortedFlashcards` filter archived items and sort by `position`. There is no
   archive UI yet, but queries and computed properties already respect the flag.
+- `Subject` and `FlashcardSet` store `iconName` (SF Symbol) and `tintIndex`
+  (index into `KotoeTheme.palette`), both optional. `nil` means "automatic":
+  subjects derive an icon/color from the name, sets use the stack symbol and
+  inherit the subject's color. Use the `style` computed property to render them
+  and `effectiveTintIndex` to preselect the appearance editor.
 - `createdAt` / `modifiedAt` / `lastAccessedAt` are plain properties updated
   **manually** in the views. There are no automatic hooks; update the parent's
   `modifiedAt` when mutating children.
@@ -136,6 +142,10 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
   date comment. Match the surrounding files.
 - Prefer the shared helpers in `Views/Helper/` over new one-offs; extend
   `PlatformModifiers.swift` when a modifier differs per platform.
+- Subject/set appearance is edited through `AppearanceEditor`; render icons with
+  `model.style` and tint card/background surfaces with `style.tint`
+  (`cardSurface(tint:)`, `AmbientBackground(tint:)`) instead of hardcoding
+  `KotoeTheme.accent`.
 - Keep platform-specific code behind `#if os(macOS)` / `#else`. Examples:
   `inlineNavigationBarTitle()` (no inline titles on macOS),
   `editorCover(...)` (`fullScreenCover` is iOS-only), and `NSImage` vs `UIImage`.
@@ -155,6 +165,10 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
 - macOS has no `EditButton` swipe-to-delete, so card deletion is also exposed
   through context menus. Maintain keyboard/mouse affordances when adding
   gesture-only features.
+- Non-scrolling screens (like `StudyView`) get an opaque window toolbar on
+  macOS, unlike `ScrollView`-based screens whose tinted backdrop shows through.
+  Apply `.toolbarBackground(.hidden, for: .windowToolbar)` under
+  `#if os(macOS)` to keep the titlebar consistent.
 - Images render through `NSImage`/`UIImage` helpers, and drawings are rendered
   in light mode so ink matches the white canvas.
 
@@ -169,6 +183,8 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
   remember CloudKit defaults and that local stores may need a migration.
 - New subject/set flows and list styling: `ContentView.swift`,
   `SubjectView.swift`.
+- Change icon/color choices or the appearance UI: `Theme.swift`
+  (`subjectSymbols`, `setSymbols`, `palette`) and `AppearanceEditor.swift`.
 
 ## Known gaps (safe next steps)
 

@@ -46,6 +46,12 @@ enum KotoeTheme {
         Color(red: 0.345, green: 0.396, blue: 0.502),  // slate
     ]
 
+    /// Resolves a stored palette index, ignoring out-of-range values.
+    static func paletteColor(at index: Int?) -> Color? {
+        guard let index, palette.indices.contains(index) else { return nil }
+        return palette[index]
+    }
+
     /// Symbols that can represent a subject.
     static let subjectSymbols = [
         "book.closed.fill",
@@ -60,6 +66,46 @@ enum KotoeTheme {
         "chevron.left.forwardslash.chevron.right",
         "leaf.fill",
         "scalemass.fill",
+        "clock.arrow.circlepath",
+        "cross.case.fill",
+        "chart.line.uptrend.xyaxis",
+        "flask.fill",
+        "theatermasks.fill",
+        "camera.fill",
+        "film.fill",
+        "sportscourt.fill",
+        "airplane",
+        "hammer.fill",
+        "lightbulb.fill",
+        "questionmark.circle.fill",
+    ]
+
+    /// Symbols that can represent a flashcard set.
+    static let setSymbols = [
+        "rectangle.stack.fill",
+        "square.stack.3d.up.fill",
+        "rectangle.on.rectangle.angled",
+        "list.bullet.rectangle.fill",
+        "folder.fill",
+        "tray.full.fill",
+        "doc.text.fill",
+        "book.pages.fill",
+        "text.book.closed.fill",
+        "graduationcap.fill",
+        "pencil.and.scribble",
+        "highlighter",
+        "pin.fill",
+        "star.fill",
+        "flag.fill",
+        "bolt.fill",
+        "target",
+        "checkmark.seal.fill",
+        "calendar",
+        "clock.fill",
+        "leaf.fill",
+        "drop.fill",
+        "flame.fill",
+        "sparkles",
     ]
 
     // MARK: Adaptive surfaces
@@ -193,7 +239,7 @@ struct SubjectStyle {
 
     var gradient: LinearGradient {
         LinearGradient(
-            colors: [tint.opacity(0.96), tint.opacity(0.66)],
+            colors: [tint, tint.mix(with: .black, by: 0.24)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -201,17 +247,63 @@ struct SubjectStyle {
 }
 
 extension Subject {
+    /// The stored icon/color when set, otherwise a stable name-derived style.
     var style: SubjectStyle {
-        KotoeTheme.style(for: name)
+        let derived = KotoeTheme.style(for: name)
+
+        return SubjectStyle(
+            symbol: iconName ?? derived.symbol,
+            tint: KotoeTheme.paletteColor(at: tintIndex) ?? derived.tint
+        )
+    }
+
+    /// Palette index to preselect in the appearance editor.
+    var effectiveTintIndex: Int {
+        tintIndex
+            ?? KotoeTheme.stableIndex(
+                for: name,
+                count: KotoeTheme.palette.count
+            )
+    }
+}
+
+extension FlashcardSet {
+    /// Falls back to the subject's color so sets stay grouped visually until
+    /// they are given a color of their own.
+    var style: SubjectStyle {
+        let fallbackTint = subject?.style.tint ?? KotoeTheme.accent
+
+        return SubjectStyle(
+            symbol: iconName ?? "rectangle.stack.fill",
+            tint: KotoeTheme.paletteColor(at: tintIndex) ?? fallbackTint
+        )
+    }
+
+    /// Palette index to preselect in the appearance editor.
+    var effectiveTintIndex: Int {
+        if let tintIndex { return tintIndex }
+        if let subject { return subject.effectiveTintIndex }
+
+        return KotoeTheme.stableIndex(
+            for: name,
+            count: KotoeTheme.palette.count
+        )
     }
 }
 
 // MARK: - Ambient background
 
-/// Soft brand-tinted backdrop used behind every screen.
+/// Soft brand-tinted backdrop used behind every screen. Pass a `tint` to make
+/// a subject or set screen echo its chosen color.
 struct AmbientBackground: View {
 
+    var tint: Color? = nil
+
     @Environment(\.colorScheme) private var colorScheme
+
+    private var primary: Color {
+        tint ?? KotoeTheme.accent
+    }
 
     var body: some View {
         ZStack {
@@ -223,7 +315,7 @@ struct AmbientBackground: View {
 
             RadialGradient(
                 colors: [
-                    KotoeTheme.accent.opacity(colorScheme == .dark ? 0.16 : 0.11),
+                    primary.opacity(colorScheme == .dark ? 0.16 : 0.11),
                     .clear,
                 ],
                 center: .topLeading,
@@ -287,22 +379,44 @@ struct CardSurface: ViewModifier {
 
     var padding: CGFloat = 16
     var cornerRadius: CGFloat = 16
+    var tint: Color? = nil
+
+    private var tintOverlay: LinearGradient {
+        LinearGradient(
+            colors: [
+                (tint ?? .clear).opacity(tint == nil ? 0 : 0.10),
+                (tint ?? .clear).opacity(tint == nil ? 0 : 0.02),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
 
     func body(content: Content) -> some View {
         content
             .padding(padding)
-            .background(
+            .background {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(KotoeTheme.cardBackground)
+                    .overlay {
+                        RoundedRectangle(
+                            cornerRadius: cornerRadius,
+                            style: .continuous
+                        )
+                        .fill(tintOverlay)
+                    }
                     .shadow(
                         color: .black.opacity(colorScheme == .dark ? 0.30 : 0.06),
                         radius: 12,
                         y: 5
                     )
-            )
+            }
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(KotoeTheme.hairline, lineWidth: 1)
+                    .strokeBorder(
+                        tint?.opacity(0.16) ?? KotoeTheme.hairline,
+                        lineWidth: 1
+                    )
             )
     }
 }
@@ -310,9 +424,16 @@ struct CardSurface: ViewModifier {
 extension View {
     func cardSurface(
         padding: CGFloat = 16,
-        cornerRadius: CGFloat = 16
+        cornerRadius: CGFloat = 16,
+        tint: Color? = nil
     ) -> some View {
-        modifier(CardSurface(padding: padding, cornerRadius: cornerRadius))
+        modifier(
+            CardSurface(
+                padding: padding,
+                cornerRadius: cornerRadius,
+                tint: tint
+            )
+        )
     }
 }
 

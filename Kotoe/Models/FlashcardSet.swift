@@ -23,6 +23,12 @@ final class FlashcardSet {
     var position: Int = 0
     var isArchived: Bool = false
 
+    /// User-chosen SF Symbol. `nil` uses the default set symbol.
+    var iconName: String? = nil
+
+    /// Index into `KotoeTheme.palette`. `nil` follows the subject's color.
+    var tintIndex: Int? = nil
+
     var subject: Subject?
 
     @Relationship(
@@ -34,7 +40,9 @@ final class FlashcardSet {
     init(
         name: String,
         notes: String? = nil,
-        position: Int = 0
+        position: Int = 0,
+        iconName: String? = nil,
+        tintIndex: Int? = nil
     ) {
         self.id = UUID()
 
@@ -42,6 +50,8 @@ final class FlashcardSet {
         self.notes = notes
 
         self.position = position
+        self.iconName = iconName
+        self.tintIndex = tintIndex
     }
     
     var sortedFlashcards: [Flashcard] {

@@ -18,6 +18,8 @@ struct SubjectView: View {
     @State private var newSetName = ""
     @State private var editingSet: FlashcardSet?
     @State private var setPendingDeletion: FlashcardSet?
+    @State private var customizingSet: FlashcardSet?
+    @State private var showingAppearance = false
     @State private var isRenaming = false
     @State private var draftName = ""
     @FocusState private var isEditingName: Bool
@@ -32,7 +34,7 @@ struct SubjectView: View {
 
     var body: some View {
         ZStack {
-            AmbientBackground()
+            AmbientBackground(tint: subject.style.tint)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
@@ -48,6 +50,7 @@ struct SubjectView: View {
                 .frame(maxWidth: .infinity)
             }
         }
+        .tint(subject.style.tint)
         .clearInitialFocusOnMac()
         .macNavigationTitle(subject.name)
         .toolbar {
@@ -78,6 +81,12 @@ struct SubjectView: View {
             FlashcardSetEditView(flashcardSet: set)
                 .editorSheetSize()
         }
+        .sheet(isPresented: $showingAppearance) {
+            subjectAppearanceEditor
+        }
+        .sheet(item: $customizingSet) { set in
+            setAppearanceEditor(for: set)
+        }
         .confirmationDialog(
             "Delete Set?",
             isPresented: deleteConfirmationBinding,
@@ -107,11 +116,32 @@ struct SubjectView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 16) {
-            IconTile(
-                symbol: subject.style.symbol,
-                tint: subject.style.tint,
-                size: 68
-            )
+            Button {
+                showingAppearance = true
+            } label: {
+                IconTile(
+                    symbol: subject.style.symbol,
+                    tint: subject.style.tint,
+                    size: 68
+                )
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 21, height: 21)
+                        .background(KotoeTheme.ink.opacity(0.7), in: Circle())
+                        .overlay(
+                            Circle()
+                                .strokeBorder(
+                                    .white.opacity(0.45),
+                                    lineWidth: 1
+                                )
+                        )
+                        .offset(x: 4, y: 4)
+                }
+            }
+            .buttonStyle(PressableCardStyle())
+            .help("Change icon and color")
 
             VStack(alignment: .leading, spacing: 6) {
                 if isRenaming {
@@ -134,7 +164,7 @@ struct SubjectView: View {
                         } label: {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 18))
-                                .foregroundStyle(KotoeTheme.accent)
+                                .foregroundStyle(subject.style.tint)
                         }
                         .buttonStyle(.plain)
                         .disabled(trimmedDraftName.isEmpty)
@@ -155,7 +185,7 @@ struct SubjectView: View {
                             style: .continuous
                         )
                         .strokeBorder(
-                            KotoeTheme.accent.opacity(0.45),
+                            subject.style.tint.opacity(0.45),
                             lineWidth: 1
                         )
                     )
@@ -209,7 +239,11 @@ struct SubjectView: View {
 
     private var studyAllCard: some View {
         NavigationLink {
-            StudyView(title: subject.name, cards: allCards)
+            StudyView(
+                title: subject.name,
+                cards: allCards,
+                tint: subject.style.tint
+            )
         } label: {
             HStack(spacing: 15) {
                 ZStack {
@@ -245,18 +279,11 @@ struct SubjectView: View {
             .foregroundStyle(.white)
             .padding(18)
             .background(
-                LinearGradient(
-                    colors: [
-                        KotoeTheme.accent,
-                        Color(red: 0.70, green: 0.28, blue: 0.23),
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
+                subject.style.gradient,
                 in: RoundedRectangle(cornerRadius: 18, style: .continuous)
             )
             .shadow(
-                color: KotoeTheme.accent.opacity(0.28),
+                color: subject.style.tint.opacity(0.28),
                 radius: 16,
                 y: 8
             )
@@ -313,7 +340,7 @@ struct SubjectView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .tint(KotoeTheme.accent)
+                .tint(subject.style.tint)
             }
 
             if sets.isEmpty {
@@ -328,14 +355,16 @@ struct SubjectView: View {
     }
 
     private func setRow(_ set: FlashcardSet) -> some View {
-        HStack(spacing: 10) {
+        let style = set.style
+
+        return HStack(spacing: 10) {
             NavigationLink {
                 StudyView(flashcardSet: set)
             } label: {
                 HStack(spacing: 14) {
                     IconTile(
-                        symbol: "rectangle.stack.fill",
-                        tint: subject.style.tint,
+                        symbol: style.symbol,
+                        tint: style.tint,
                         size: 42
                     )
 
@@ -363,6 +392,12 @@ struct SubjectView: View {
 
             Menu {
                 Button {
+                    customizingSet = set
+                } label: {
+                    Label("Change Icon…", systemImage: "paintpalette")
+                }
+
+                Button {
                     editingSet = set
                 } label: {
                     Label("Edit Cards", systemImage: "pencil")
@@ -388,9 +423,15 @@ struct SubjectView: View {
             .fixedSize()
             .help("Set actions")
         }
-        .cardSurface(padding: 12)
+        .cardSurface(padding: 12, tint: style.tint)
         .hoverLift()
         .contextMenu {
+            Button {
+                customizingSet = set
+            } label: {
+                Label("Change Icon…", systemImage: "paintpalette")
+            }
+
             Button {
                 editingSet = set
             } label: {
@@ -413,7 +454,7 @@ struct SubjectView: View {
             VStack(spacing: 9) {
                 Image(systemName: "plus.rectangle.on.folder.fill")
                     .font(.system(size: 28))
-                    .foregroundStyle(KotoeTheme.accent)
+                    .foregroundStyle(subject.style.tint)
 
                 Text("Create Your First Set")
                     .font(.headline)
@@ -435,7 +476,7 @@ struct SubjectView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(
-                        KotoeTheme.accent.opacity(0.32),
+                        subject.style.tint.opacity(0.32),
                         style: StrokeStyle(
                             lineWidth: 1.5,
                             dash: [6, 4]
@@ -447,6 +488,70 @@ struct SubjectView: View {
     }
 
     // MARK: - Actions
+
+    private var subjectAppearanceEditor: some View {
+        AppearanceEditor(
+            title: "Subject Appearance",
+            subtitle: "Choose the icon and color for \(subject.name).",
+            symbols: KotoeTheme.subjectSymbols,
+            defaultSymbol: KotoeTheme.style(for: subject.name).symbol,
+            defaultTintIndex: subject.effectiveTintIndex,
+            iconName: Binding(
+                get: { subject.iconName },
+                set: { subject.iconName = $0 }
+            ),
+            tintIndex: Binding(
+                get: { subject.tintIndex },
+                set: { subject.tintIndex = $0 }
+            )
+        )
+        .editorSheetSize(width: 460, height: 560)
+        .onChange(of: subject.iconName) {
+            subject.modifiedAt = .now
+            saveAppearance()
+        }
+        .onChange(of: subject.tintIndex) {
+            subject.modifiedAt = .now
+            saveAppearance()
+        }
+    }
+
+    private func setAppearanceEditor(for set: FlashcardSet) -> some View {
+        AppearanceEditor(
+            title: "Set Appearance",
+            subtitle: "Choose the icon and color for \(set.name).",
+            symbols: KotoeTheme.setSymbols,
+            defaultSymbol: "rectangle.stack.fill",
+            defaultTintIndex: set.effectiveTintIndex,
+            iconName: Binding(
+                get: { set.iconName },
+                set: { set.iconName = $0 }
+            ),
+            tintIndex: Binding(
+                get: { set.tintIndex },
+                set: { set.tintIndex = $0 }
+            )
+        )
+        .editorSheetSize(width: 460, height: 560)
+        .onChange(of: set.iconName) {
+            set.modifiedAt = .now
+            subject.modifiedAt = .now
+            saveAppearance()
+        }
+        .onChange(of: set.tintIndex) {
+            set.modifiedAt = .now
+            subject.modifiedAt = .now
+            saveAppearance()
+        }
+    }
+
+    private func saveAppearance() {
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to save appearance: \(error)")
+        }
+    }
 
     private var trimmedDraftName: String {
         draftName.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -24,6 +24,12 @@ final class Subject {
     var position: Int = 0
     var isArchived: Bool = false
 
+    /// User-chosen SF Symbol. `nil` derives one from the name.
+    var iconName: String? = nil
+
+    /// Index into `KotoeTheme.palette`. `nil` derives a color from the name.
+    var tintIndex: Int? = nil
+
     // MARK: Relationships
 
     @Relationship(
@@ -35,7 +41,9 @@ final class Subject {
     init(
         name: String,
         notes: String? = nil,
-        position: Int = 0
+        position: Int = 0,
+        iconName: String? = nil,
+        tintIndex: Int? = nil
     ) {
         self.id = UUID()
 
@@ -43,6 +51,8 @@ final class Subject {
         self.notes = notes
 
         self.position = position
+        self.iconName = iconName
+        self.tintIndex = tintIndex
     }
     
     var sortedFlashcardSets: [FlashcardSet] {

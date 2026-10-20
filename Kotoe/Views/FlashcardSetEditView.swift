@@ -22,6 +22,7 @@ struct FlashcardSetEditView: View {
     @State private var path: [Flashcard] = []
     @State private var isRenaming = false
     @State private var draftName = ""
+    @State private var showingAppearance = false
     @FocusState private var isEditingName: Bool
 
     private var cards: [Flashcard] {
@@ -31,7 +32,7 @@ struct FlashcardSetEditView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
-                AmbientBackground()
+                AmbientBackground(tint: flashcardSet.style.tint)
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
@@ -65,6 +66,9 @@ struct FlashcardSetEditView: View {
             .onChange(of: flashcardSet.name) {
                 flashcardSet.modifiedAt = .now
             }
+            .sheet(isPresented: $showingAppearance) {
+                appearanceEditor
+            }
         }
         .editorSheetSize(width: 680, height: 740)
     }
@@ -73,11 +77,32 @@ struct FlashcardSetEditView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 16) {
-            IconTile(
-                symbol: "rectangle.stack.fill",
-                tint: KotoeTheme.accent,
-                size: 60
-            )
+            Button {
+                showingAppearance = true
+            } label: {
+                IconTile(
+                    symbol: flashcardSet.style.symbol,
+                    tint: flashcardSet.style.tint,
+                    size: 60
+                )
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 19, height: 19)
+                        .background(KotoeTheme.ink.opacity(0.7), in: Circle())
+                        .overlay(
+                            Circle()
+                                .strokeBorder(
+                                    .white.opacity(0.45),
+                                    lineWidth: 1
+                                )
+                        )
+                        .offset(x: 4, y: 4)
+                }
+            }
+            .buttonStyle(PressableCardStyle())
+            .help("Change icon and color")
 
             VStack(alignment: .leading, spacing: 5) {
                 if isRenaming {
@@ -279,6 +304,44 @@ struct FlashcardSetEditView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Appearance
+
+    private var appearanceEditor: some View {
+        AppearanceEditor(
+            title: "Set Appearance",
+            subtitle: "Choose the icon and color for \(flashcardSet.name).",
+            symbols: KotoeTheme.setSymbols,
+            defaultSymbol: "rectangle.stack.fill",
+            defaultTintIndex: flashcardSet.effectiveTintIndex,
+            iconName: Binding(
+                get: { flashcardSet.iconName },
+                set: { flashcardSet.iconName = $0 }
+            ),
+            tintIndex: Binding(
+                get: { flashcardSet.tintIndex },
+                set: { flashcardSet.tintIndex = $0 }
+            )
+        )
+        .editorSheetSize(width: 460, height: 560)
+        .onChange(of: flashcardSet.iconName) {
+            saveAppearance()
+        }
+        .onChange(of: flashcardSet.tintIndex) {
+            saveAppearance()
+        }
+    }
+
+    private func saveAppearance() {
+        flashcardSet.modifiedAt = .now
+        flashcardSet.subject?.modifiedAt = .now
+
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to save set appearance: \(error)")
+        }
     }
 
     // MARK: - Actions

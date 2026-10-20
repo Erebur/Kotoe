@@ -17,16 +17,23 @@ struct StudyView: View {
 
     let title: String
     let cards: [Flashcard]
+    let tint: Color
 
-    init(title: String, cards: [Flashcard]) {
+    init(
+        title: String,
+        cards: [Flashcard],
+        tint: Color = KotoeTheme.accent
+    ) {
         self.title = title
         self.cards = cards
+        self.tint = tint
     }
 
     init(flashcardSet: FlashcardSet) {
         self.init(
             title: flashcardSet.name,
-            cards: flashcardSet.sortedFlashcards
+            cards: flashcardSet.sortedFlashcards,
+            tint: flashcardSet.style.tint
         )
     }
 
@@ -45,7 +52,7 @@ struct StudyView: View {
 
     var body: some View {
         ZStack {
-            AmbientBackground()
+            AmbientBackground(tint: tint)
 
             content
         }
@@ -85,6 +92,12 @@ struct StudyView: View {
                 }
             }
         }
+        #if os(macOS)
+        // StudyView is not scrollable, so macOS would otherwise give its
+        // window toolbar an opaque background instead of the tinted one
+        // that scrollable screens get.
+        .toolbarBackground(.hidden, for: .windowToolbar)
+        #endif
         .onAppear {
             guard !didStart else { return }
             didStart = true
@@ -116,6 +129,7 @@ struct StudyView: View {
                 ZStack {
                     StudyCard(
                         card: card,
+                        tint: tint,
                         flipSignal: flipSignal
                     ) { flipped in
                         isFlipped = flipped
@@ -157,7 +171,7 @@ struct StudyView: View {
                     .trim(from: 0, to: progress)
                     .stroke(
                         LinearGradient(
-                            colors: [KotoeTheme.accent, KotoeTheme.gold],
+                            colors: [tint, KotoeTheme.gold],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
@@ -198,7 +212,7 @@ struct StudyView: View {
                 .foregroundStyle(KotoeTheme.gold)
                 .opacity(queue.count == 1 ? 1 : 0.45)
         }
-        .cardSurface(padding: 14)
+        .cardSurface(padding: 14, tint: tint)
     }
 
     @ViewBuilder
@@ -240,7 +254,7 @@ struct StudyView: View {
                     .padding(.vertical, 14)
             }
             .buttonStyle(.borderedProminent)
-            .tint(KotoeTheme.accent)
+            .tint(tint)
             .controlSize(.large)
             .keyboardShortcut(.space, modifiers: [])
             .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -253,12 +267,12 @@ struct StudyView: View {
         VStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(KotoeTheme.accent.opacity(0.12))
+                    .fill(tint.opacity(0.12))
                     .frame(width: 124, height: 124)
 
                 Image(systemName: "rectangle.stack.badge.minus")
                     .font(.system(size: 50))
-                    .foregroundStyle(KotoeTheme.accent)
+                    .foregroundStyle(tint)
             }
 
             Text("No Cards Yet")
@@ -314,7 +328,7 @@ struct StudyView: View {
                     Label("Study Again", systemImage: "arrow.counterclockwise")
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(KotoeTheme.accent)
+                .tint(tint)
 
                 Button {
                     start(shuffled: true)
@@ -376,6 +390,7 @@ struct StudyView: View {
 private struct StudyCard: View {
 
     let card: Flashcard
+    let tint: Color
     let flipSignal: Int
     let onFlipChanged: (Bool) -> Void
 
@@ -387,7 +402,7 @@ private struct StudyCard: View {
                 side: card.front,
                 label: "Front",
                 symbol: "questionmark",
-                tint: KotoeTheme.accent
+                tint: tint
             )
             .opacity(isFlipped ? 0 : 1)
 

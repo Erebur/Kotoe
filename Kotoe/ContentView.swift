@@ -23,6 +23,7 @@ struct ContentView: View {
     @State private var showingNewSubject = false
     @State private var newSubjectName = ""
     @State private var subjectPendingDeletion: Subject?
+    @State private var customizingSubject: Subject?
 
     var body: some View {
         NavigationStack {
@@ -81,6 +82,9 @@ struct ContentView: View {
                     onCancel: closeSheet
                 )
                 .dialogSheet()
+            }
+            .sheet(item: $customizingSubject) { subject in
+                appearanceEditor(for: subject)
             }
             .confirmationDialog(
                 "Delete Subject?",
@@ -187,7 +191,7 @@ struct ContentView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.tertiary)
             }
-            .cardSurface(padding: 14)
+            .cardSurface(padding: 14, tint: style.tint)
             .contentShape(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
             )
@@ -195,6 +199,14 @@ struct ContentView: View {
         .buttonStyle(PressableCardStyle())
         .hoverLift()
         .contextMenu {
+            Button {
+                customizingSubject = subject
+            } label: {
+                Label("Change Icon…", systemImage: "paintpalette")
+            }
+
+            Divider()
+
             Button(role: .destructive) {
                 subjectPendingDeletion = subject
             } label: {
@@ -263,6 +275,41 @@ struct ContentView: View {
     }
 
     // MARK: - Actions
+
+    private func appearanceEditor(for subject: Subject) -> some View {
+        AppearanceEditor(
+            title: "Subject Appearance",
+            subtitle: "Choose the icon and color that represent \(subject.name).",
+            symbols: KotoeTheme.subjectSymbols,
+            defaultSymbol: KotoeTheme.style(for: subject.name).symbol,
+            defaultTintIndex: subject.effectiveTintIndex,
+            iconName: Binding(
+                get: { subject.iconName },
+                set: { subject.iconName = $0 }
+            ),
+            tintIndex: Binding(
+                get: { subject.tintIndex },
+                set: { subject.tintIndex = $0 }
+            )
+        )
+        .editorSheetSize(width: 460, height: 560)
+        .onChange(of: subject.iconName) {
+            subject.modifiedAt = .now
+            saveAppearance()
+        }
+        .onChange(of: subject.tintIndex) {
+            subject.modifiedAt = .now
+            saveAppearance()
+        }
+    }
+
+    private func saveAppearance() {
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to save subject appearance: \(error)")
+        }
+    }
 
     private var deleteConfirmationBinding: Binding<Bool> {
         Binding(
