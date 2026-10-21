@@ -33,9 +33,9 @@ repetition scheduling, archiving, import/export, search, and tests do not.
 
 The Xcode project uses a **file-system-synchronized group**, so any `.swift`
 file added anywhere under `Kotoe/` is compiled automatically. Do **not**
-hand-edit `Kōtoe.xcodeproj/project.pbxproj` to add files. The one exception is
-`Localizable.xcstrings`, which sits at the project root (outside the
-synchronized group) and is added to the target explicitly.
+hand-edit `Kōtoe.xcodeproj/project.pbxproj` to add files. The exceptions are
+the files that sit at the project root (outside the synchronized group) and
+are added to the target explicitly: `Localizable.xcstrings` and `LICENSE`.
 
 The project/scheme name contains a macron (`Kōtoe`). Always quote it in shell
 commands.
@@ -234,10 +234,11 @@ the worktree commits should keep their branch history in the main checkout.
 ## Versioning & releases
 
 - A larger feature bumps both version fields in `Kōtoe.xcodeproj/project.pbxproj`
-  (all configurations): `MARKETING_VERSION` (for example `vb.1.0` → `vb.1.1`)
-  and `CURRENT_PROJECT_VERSION` (build number). Include the bump in the feature
+  (all configurations): `MARKETING_VERSION` (for example `1.1` → `1.2`) and
+  `CURRENT_PROJECT_VERSION` (build number). Include the bump in the feature
   commit, then tag that commit in the main checkout:
-  `git tag -a vb.1.1 -m "Describe the feature"`.
+  `git tag -a v1.2 -m "Describe the feature"`. The version string carries no
+  prefix, and the tag matches it.
 - Bump for new content types, storage or sync layers, new screens or flows, and
   model changes. Docs, copy changes, and small fixes do not need a bump.
 - Tag only commits that are in the main checkout, after transferring the work
@@ -250,6 +251,8 @@ the worktree commits should keep their branch history in the main checkout.
 ## Repository layout
 
 ```
+LICENSE                          MIT license text; bundled into the app
+README.md                        project overview, build steps, license
 Localizable.xcstrings            UI copy for en, de, es, fr, ja
 Kotoe/
   FlashApp.swift                 @main app, SwiftData ModelContainer
@@ -270,6 +273,7 @@ Kotoe/
     FlashcardSideContentView.swift  rendering, media loading,
                                     PencilKit canvases, DrawingEditorView
     PDFViewer.swift                PDFKit wrapper + full document viewer
+    OpenSourceLicensesView.swift  license screen; not wired into the UI
     Helper/
       PlatformModifiers.swift    cross-platform view modifiers
       IconButton.swift           shared button + `if` modifier
@@ -404,6 +408,22 @@ in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
   copy too. SF Symbol names, user-entered names, and the `Kōtoe` brand stay as
   they are.
 
+## License
+
+Kōtoe is released under the MIT License. The canonical text lives in the
+`LICENSE` file at the repository root and is the only copy of the license
+text — do not paste it into Swift code or the string catalog.
+
+- The `LICENSE` file is registered explicitly in
+  `Kōtoe.xcodeproj/project.pbxproj` (like `Localizable.xcstrings`) so it is
+  copied into the app bundle as a resource. It is the only root file that
+  needs a project entry.
+- `Views/OpenSourceLicensesView.swift` reads the bundled `LICENSE` at runtime
+  and shows the license name, copyright line, app version and full text. It
+  derives the name and copyright from the file, so they cannot drift from it.
+- The screen is **not wired into the app's UI**; nothing presents it yet. Keep
+  it that way until there is an About screen to host it.
+
 ## Conventions
 
 - 4-space indentation, roughly 80-column wrapping (SwiftFormat-like style:
@@ -492,6 +512,8 @@ in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
 - Change sync status, logging, or CloudKit diagnostics:
   `Sync/CloudKitSyncMonitor.swift` and the footer in `ContentView.swift`; see
   **iCloud sync**.
+- Change the license or its in-app presentation: the `LICENSE` file at the
+  repository root and `Views/OpenSourceLicensesView.swift`; see **License**.
 
 ## Known gaps (safe next steps)
 

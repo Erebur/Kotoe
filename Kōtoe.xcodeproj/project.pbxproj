@@ -9,12 +9,14 @@
 /* Begin PBXBuildFile section */
 		D50EA36030881179006DD902 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = D50EA35D30881179006DD902 /* Localizable.xcstrings */; };
 		D5ADAEA03086B23B00FAAC41 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = D5ADAE9F3086B23B00FAAC41 /* AppIcon.icon */; };
+		D5B000002F1A0001000000001 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = D5B000002F1A0001000000002 /* LICENSE */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		D50EA35D30881179006DD902 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		D512862030856EF500DBA69D /* Kōtoe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Kōtoe.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		D5ADAE9F3086B23B00FAAC41 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		D5B000002F1A0001000000002 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -54,6 +56,7 @@
 			children = (
 				D50EA35D30881179006DD902 /* Localizable.xcstrings */,
 				D5ADAE9F3086B23B00FAAC41 /* AppIcon.icon */,
+				D5B000002F1A0001000000002 /* LICENSE */,
 				D512862230856EF500DBA69D /* Kotoe */,
 				D512862130856EF500DBA69D /* Products */,
 			);
@@ -137,6 +140,7 @@
 			files = (
 				D50EA36030881179006DD902 /* Localizable.xcstrings in Resources */,
 				D5ADAEA03086B23B00FAAC41 /* AppIcon.icon in Resources */,
+				D5B000002F1A0001000000001 /* LICENSE in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -161,7 +165,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = "Kotoe/Kōtoe.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = XMGF5HVWMW;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -187,7 +191,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 27.0;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.erebur.kotoe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -214,7 +218,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = "Kotoe/Kōtoe.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = XMGF5HVWMW;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -240,7 +244,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 27.0;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.erebur.kotoe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
