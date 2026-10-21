@@ -165,6 +165,10 @@ Notes:
 - Quit other `Kōtoe` instances first
   (`pkill -f "DerivedData/K.*toe"`). macOS keeps one instance per bundle ID,
   so a stale build can keep the old window.
+- A demo container must pass `cloudKitDatabase: .none` **and**
+  `isStoredInMemoryOnly: true`. `cloudKitDatabase` defaults to `.automatic`, so
+  a container that only sets `isStoredInMemoryOnly` still opens the real store,
+  writes the sample data into it, and exports it to iCloud.
 - `osascript` clicks and keystrokes are blocked here with
   `osascript is not allowed assistive access`. Do not try to drive the UI;
   make the target screen the root or auto-present it.
