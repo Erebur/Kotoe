@@ -22,7 +22,7 @@ repetition scheduling, archiving, import/export, search, and tests do not.
 | --- | --- |
 | UI | SwiftUI (no UIKit/AppKit view controllers except PencilKit wrappers) |
 | Persistence | SwiftData (`@Model`), CloudKit sync enabled (`.automatic`) |
-| Targets | iOS, iPadOS, macOS, visionOS (`TARGETED_DEVICE_FAMILY = 1,2,7`) |
+| Targets | iOS, iPadOS, macOS (`TARGETED_DEVICE_FAMILY = 1,2`) |
 | Deployment target | 27.0 for iOS and macOS |
 | Swift | 5.0 language mode |
 | Xcode | 27.1 (`objectVersion = 77`) |
@@ -177,11 +177,18 @@ Notes:
   the user's iCloud Drive. After a demo, check
   `~/Library/Mobile Documents/iCloud~com~erebur~kotoe` and delete anything the
   demo created.
+- A demo that falls back to local media storage writes into
+  `~/Library/Application Support/Media` (the folder is shared by every
+  non-sandboxed build). Delete it after the demo run.
+- macOS restores the last window frame from the user defaults, which overrides
+  `Scene.defaultSize`. A demo that needs a specific window size has to set it
+  with `NSWindow.setContentSize` after the window appears.
 - `osascript` clicks and keystrokes are blocked here with
   `osascript is not allowed assistive access`. Do not try to drive the UI;
   make the target screen the root or auto-present it.
 - Never commit the demo `FlashApp.swift`, sample data, build output, or
-  screenshots.
+  screenshots. The committed screenshots in `docs/images/` are converted to
+  WebP and belong in the repository; everything else stays outside it.
 - For iOS, boot a simulator and use
   `xcrun simctl io booted screenshot "$DEMO/shot.png"`. Make the target screen
   the root in the copy for the same reason.
@@ -262,8 +269,9 @@ the worktree commits should keep their branch history in the main checkout.
 
 ```
 LICENSE                          MIT license text; bundled into the app
-README.md                        project overview, build steps, license
+README.md                        project overview, screenshots, stats, roadmap
 Localizable.xcstrings            UI copy for en, de, es, fr, ja
+docs/images/                     Screenshots referenced by README.md
 Kotoe/
   FlashApp.swift                 @main app, SwiftData ModelContainer
   ContentView.swift              Subject list (root screen)
@@ -524,6 +532,9 @@ text — do not paste it into Swift code or the string catalog.
   **iCloud sync**.
 - Change the license or its in-app presentation: the `LICENSE` file at the
   repository root and `Views/OpenSourceLicensesView.swift`; see **License**.
+- Change the public project page: `README.md` and the screenshots in
+  `docs/images/`. Re-capture them with the **Demo & screenshot workflow** and
+  keep the stats in the README in sync with the code.
 
 ## Known gaps (safe next steps)
 
