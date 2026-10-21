@@ -165,10 +165,18 @@ Notes:
 - Quit other `Kōtoe` instances first
   (`pkill -f "DerivedData/K.*toe"`). macOS keeps one instance per bundle ID,
   so a stale build can keep the old window.
-- A demo container must pass `cloudKitDatabase: .none` **and**
-  `isStoredInMemoryOnly: true`. `cloudKitDatabase` defaults to `.automatic`, so
-  a container that only sets `isStoredInMemoryOnly` still opens the real store,
-  writes the sample data into it, and exports it to iCloud.
+- **Never let a demo sync.** A demo container must pass
+  `cloudKitDatabase: .none` **and** `isStoredInMemoryOnly: true`.
+  `cloudKitDatabase` defaults to `.automatic`, so a container that only sets
+  `isStoredInMemoryOnly` still opens the real store, writes the sample data
+  into it, and exports it to iCloud.
+- Give the demo copy its own bundle ID and strip the iCloud entitlements
+  (`icloud-services`, `ubiquity-container-identifiers`) and
+  `NSUbiquitousContainers` from `Info.plist`. A non-sandboxed demo can still
+  resolve the real ubiquity container by identifier and write sample media into
+  the user's iCloud Drive. After a demo, check
+  `~/Library/Mobile Documents/iCloud~com~erebur~kotoe` and delete anything the
+  demo created.
 - `osascript` clicks and keystrokes are blocked here with
   `osascript is not allowed assistive access`. Do not try to drive the UI;
   make the target screen the root or auto-present it.
@@ -222,6 +230,22 @@ git -C "$MAIN" worktree list
 
 Prefer `cherry-pick` for one-off transfers. Use `git merge <SHA>` instead when
 the worktree commits should keep their branch history in the main checkout.
+
+## Versioning & releases
+
+- A larger feature bumps both version fields in `Kōtoe.xcodeproj/project.pbxproj`
+  (all configurations): `MARKETING_VERSION` (for example `vb.1.0` → `vb.1.1`)
+  and `CURRENT_PROJECT_VERSION` (build number). Include the bump in the feature
+  commit, then tag that commit in the main checkout:
+  `git tag -a vb.1.1 -m "Describe the feature"`.
+- Bump for new content types, storage or sync layers, new screens or flows, and
+  model changes. Docs, copy changes, and small fixes do not need a bump.
+- Tag only commits that are in the main checkout, after transferring the work
+  from a worktree; tags created in a worktree are easy to lose. Never move or
+  reuse an existing tag — bump the version again instead.
+- Check the current values with
+  `grep -n "MARKETING_VERSION\|CURRENT_PROJECT_VERSION" "Kōtoe.xcodeproj/project.pbxproj"`
+  and list existing tags with `git tag -l`.
 
 ## Repository layout
 
