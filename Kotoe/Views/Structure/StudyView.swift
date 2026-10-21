@@ -70,6 +70,7 @@ struct StudyView: View {
                                 systemImage: "arrow.counterclockwise"
                             )
                         }
+                        .tint(.primary)
 
                         Button {
                             start(shuffled: true)
@@ -79,24 +80,14 @@ struct StudyView: View {
                                 systemImage: "shuffle"
                             )
                         }
-
-                        Divider()
-
-                        Button {
-                            flipCurrentCard()
-                        } label: {
-                            Label(
-                                "studyView.options.revealAnswer",
-                                systemImage: "eye"
-                            )
-                        }
-                        .disabled(isFlipped || queue.isEmpty)
+                        .tint(.primary)
                     } label: {
                         Label(
                             "studyView.options.title",
                             systemImage: "ellipsis.circle"
                         )
                     }
+                    .tint(.primary)
                     .help("studyView.options.help")
                 }
             }

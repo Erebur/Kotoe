@@ -63,8 +63,6 @@ struct ContentView: View {
                 }
                 .scrollIndicators(.automatic)
             }
-            .navigationTitle("Kōtoe")
-            .inlineNavigationBarTitle()
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
