@@ -12,7 +12,6 @@ struct ContentView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.locale) private var locale
     @Environment(\.scenePhase) private var scenePhase
     @Environment(CloudKitSyncMonitor.self) private var syncMonitor
 
@@ -51,17 +50,17 @@ struct ContentView: View {
                             }
                             .transition(.opacity)
                         }
-
-                        syncStatus
-                        disclaimer
                     }
                     .padding(.horizontal, 22)
                     .padding(.top, 18)
-                    .padding(.bottom, 32)
+                    .padding(.bottom, 24)
                     .frame(maxWidth: 1100, alignment: .leading)
                     .frame(maxWidth: .infinity)
                 }
                 .scrollIndicators(.automatic)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                footer
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -171,6 +170,16 @@ struct ContentView: View {
 
     // MARK: - Footer
 
+    /// Sync state, pinned to the bottom of the screen.
+    ///
+    /// It stays out of the scroll view, so the state is readable no matter
+    /// how far down the library is scrolled.
+    private var footer: some View {
+        syncStatus
+            .frame(maxWidth: 1100)
+            .frame(maxWidth: .infinity)
+    }
+
     /// CloudKit retries silently, so without this line a failed import is
     /// indistinguishable from an empty library.
     @ViewBuilder
@@ -235,7 +244,8 @@ struct ContentView: View {
         .font(.caption2)
         .foregroundStyle(tint)
         .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.top, 6)
+        .padding(.horizontal, 22)
+        .padding(.bottom, 12)
         .accessibilityElement(children: .combine)
     }
 
@@ -244,17 +254,6 @@ struct ContentView: View {
         formatter.unitsStyle = .full
         return formatter
     }()
-
-    @ViewBuilder
-    private var disclaimer: some View {
-        if locale.language.languageCode?.identifier != "en" {
-            Text("contentView.footer.disclaimer")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 6)
-        }
-    }
 
     // MARK: - Subject Cards
 

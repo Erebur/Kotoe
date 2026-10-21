@@ -171,6 +171,8 @@ extension FlashcardSide {
     /// Whether image content exists, including an iCloud placeholder that has
     /// not been downloaded yet.
     var hasImage: Bool {
+        guard contentType == .image else { return false }
+
         if let mediaFileName {
             return MediaStore.hasFile(named: mediaFileName)
         }

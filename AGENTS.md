@@ -14,7 +14,7 @@ hand-drawn, or PDF content on each side. Data is stored locally with
 SwiftData and synced through the user's iCloud/CloudKit account.
 
 It is an early-stage app: the UI and data model for the core loop exist; spaced
-repetition scheduling, archiving, import/export, search, and tests do not.
+repetition scheduling, archiving, export, search, and tests do not.
 
 ## Platform & toolchain
 
@@ -275,30 +275,36 @@ docs/images/                     Screenshots referenced by README.md
 Kotoe/
   FlashApp.swift                 @main app, SwiftData ModelContainer
   ContentView.swift              Subject list (root screen)
-  Sync/
-    CloudKitSyncMonitor.swift    CloudKit event observer + sync status
-  Media/
-    MediaStore.swift             iCloud Drive file storage for card media
+  Control/
+    LocalizedCounts.swift        pluralized subject/set/card counts
+    Media/
+      MediaStore.swift           iCloud Drive file storage for card media
+    Sync/
+      CloudKitSyncMonitor.swift  CloudKit event observer + sync status
+  Import/
+    TextCardImporter.swift       pasted text → cards (Quizlet TSV and friends)
+    ImportedFile.swift           reads a picked file, detects its content
   Models/
     Subject.swift                top level: subject
     FlashcardSet.swift           flashcards belonging to a subject
     Flashcard.swift              one card; front/back accessors
     FlashcardSide.swift          content payload + PencilKit helpers
   Views/
-    SubjectView.swift            subject detail, sets, notes, "Study All"
-    StudyView.swift              study session + FlipCard
     FlashcardSetEditView.swift   set editor, card editor, side editor
+    CardImportView.swift         bulk import sheet: paste text, preview, import
     FlashcardSideContentView.swift  rendering, media loading,
                                     PencilKit canvases, DrawingEditorView
-    PDFViewer.swift                PDFKit wrapper + full document viewer
-    OpenSourceLicensesView.swift  license screen; not wired into the UI
+    Theme.swift                  brand colors, card surfaces, shared UI pieces
     Helper/
       PlatformModifiers.swift    cross-platform view modifiers
-      IconButton.swift           shared button + `if` modifier
-      Theme.swift                brand colors, card surfaces, shared UI pieces
-      CreateItemSheet.swift      shared "create subject / create set" prompt
       AppearanceEditor.swift     icon + color picker for subjects and sets
-      LocalizedCounts.swift      pluralized subject/set/card counts
+      CreateItemSheet.swift      shared "create subject / create set" prompt
+      PDFViewer.swift            PDFKit wrapper + full document viewer
+      If.swift                   shared `if` view modifier
+      Clipboard.swift            pasteboard access for the card import
+    Structure/
+      SubjectView.swift          subject detail, sets, notes, "Study All"
+      StudyView.swift            study session + FlipCard
 ```
 
 ## Data model
@@ -338,6 +344,39 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
 - Side order in `Flashcard.sides` is not meaningful — always use `front` /
   `back` or `setFront` / `setBack`.
 
+## Card editing & import
+
+`FlashcardSetEditView` lists the cards of a set. **Import** opens
+`CardImportView`, **Add Card** opens the card editor for a new card, and a
+card row opens the editor for an existing one.
+
+- The card editor (`FlashcardEditorView`) has a footer with **Save** and
+  **Next Card**. **Next Card** creates an empty card at the end of the set
+  and *replaces* the open editor in the navigation path
+  (`path[path.count - 1] = card`), so the back button still returns to the
+  set instead of walking through every card that was added.
+- Each side picks what it holds with a styled segmented control: **Text**,
+  **Drawing** and **File**. The file entry covers images and PDFs, because
+  the file itself decides which one a side ends up with; the model still
+  stores `.image` and `.pdf` separately, and the picker maps between the
+  two. A side that holds a file shows the file controls, everything else is
+  refused with an alert.
+- The file picker accepts every file (`UTType.item`); `ImportedFile` decides
+  what the file becomes — a PDF stays a PDF, an image is stored as an image,
+  a text file becomes text. Picking a file also switches the side's
+  `contentType` to match.
+- The file tab keeps the native gallery picker (`PhotosPicker`) next to the
+  file picker. Images are decoded with ImageIO, so every format the system
+  supports (JPEG, PNG, HEIC, GIF, TIFF, WebP) renders.
+- Bulk import parses pasted or imported text with `TextCardImporter`: one
+  card per line, term and answer separated by a tab (Quizlet), a dash, or a
+  colon. The separator is detected from the text, `\n` inside a field is
+  unescaped, and lines without a separator become cards with a front only.
+  The sheet shows a preview of the first cards before anything is created.
+- Reading the pasteboard on iOS shows the system paste prompt, so only read
+  it from a user action. `Clipboard.hasText` is safe to read while drawing;
+  `Clipboard.text` is not.
+
 ## iCloud sync
 
 SwiftData mirrors the store through CloudKit automatically
@@ -353,7 +392,9 @@ in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
   `NSPersistentCloudKitContainer.eventChangedNotification`, logs failed
   setup/import/export operations with `print`, and drives the "Synced …" /
   "iCloud sync failed" line in the library footer. SwiftData posts these
-  notifications even though it never exposes its container.
+  notifications even though it never exposes its container. The line is
+  pinned to the bottom of the library screen with a `safeAreaInset`, not
+  part of the scroll view, so it stays readable at any scroll position.
 - Imports run through `NSPersistentStoreRemoteChange` and normally refresh
   `@Query` results without extra work. When data looks missing, relaunch before
   assuming it never synced — TN3164 lists this first.
@@ -417,11 +458,9 @@ in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
 - If a translation does not appear, check that the key in the catalog matches
   the literal passed in Swift exactly, and mirror a `LocalizedStringKey` to
   confirm the key it resolves to.
-- **All non-English translations are machine translated.** The disclaimer is a
-  faint footer at the bottom of the library screen (`ContentView.disclaimer`),
-  shown only when the app language is not English. Keep it until the
-  translations get a professional review, and keep it visible when adding a
-  language.
+- **All non-English translations are machine translated.** Nothing in the app
+  says so, so keep new translations close to the English wording until they
+  have been reviewed by native speakers.
 - Localize picker options, help text, accessibility labels, and empty-state
   copy too. SF Symbol names, user-entered names, and the `Kōtoe` brand stay as
   they are.
@@ -436,11 +475,10 @@ text — do not paste it into Swift code or the string catalog.
   `Kōtoe.xcodeproj/project.pbxproj` (like `Localizable.xcstrings`) so it is
   copied into the app bundle as a resource. It is the only root file that
   needs a project entry.
-- `Views/OpenSourceLicensesView.swift` reads the bundled `LICENSE` at runtime
-  and shows the license name, copyright line, app version and full text. It
-  derives the name and copyright from the file, so they cannot drift from it.
-- The screen is **not wired into the app's UI**; nothing presents it yet. Keep
-  it that way until there is an About screen to host it.
+- There is no in-app license screen. The bundled file is the only copy of
+  the text; an About screen would read it at runtime and derive the name,
+  copyright line, app version and full text from the file, so they cannot
+  drift from it.
 
 ## Conventions
 
@@ -511,27 +549,34 @@ text — do not paste it into Swift code or the string catalog.
 ## Where to change what
 
 - Add a screen field: extend the model, then the relevant form in
-  `SubjectView` / `FlashcardSetEditView`.
-- Change study behavior (queue, scoring, shuffling): `StudyView.swift`.
+  `Views/Structure/SubjectView.swift` / `Views/FlashcardSetEditView.swift`.
+- Change study behavior (queue, scoring, shuffling):
+  `Views/Structure/StudyView.swift`.
 - Change card rendering or add a content type: `FlashcardSideContentView.swift`
   plus the `FlashcardContentType` enum and the side editor's picker.
-- Change card media storage: `Media/MediaStore.swift`; the side's file-based
-  helpers live in `Models/FlashcardSide.swift`. PDF import and viewing go
-  through `Views/PDFViewer.swift` and the side editor in
-  `FlashcardSetEditView.swift`.
+- Change how bulk imports are parsed (separator, escaping):
+  `Import/TextCardImporter.swift`.
+- Change the import sheet (paste, file, preview): `Views/CardImportView.swift`.
+- Change which files a card side accepts and how they are detected:
+  `Import/ImportedFile.swift` and the side editor in `FlashcardSetEditView.swift`.
+- Change card media storage: `Control/Media/MediaStore.swift`; the side's
+  file-based helpers live in `Models/FlashcardSide.swift`. PDF import and
+  viewing go through `Views/Helper/PDFViewer.swift` and the side editor in
+  `Views/FlashcardSetEditView.swift`.
 - Change persistence/schema: `FlashApp.swift` schema list plus the models;
   remember CloudKit defaults and that local stores may need a migration.
 - New subject/set flows and list styling: `ContentView.swift`,
-  `SubjectView.swift`.
-- Change icon/color choices or the appearance UI: `Theme.swift`
-  (`subjectSymbols`, `setSymbols`, `palette`) and `AppearanceEditor.swift`.
+  `Views/Structure/SubjectView.swift`.
+- Change icon/color choices or the appearance UI: `Views/Theme.swift`
+  (`subjectSymbols`, `setSymbols`, `palette`) and
+  `Views/Helper/AppearanceEditor.swift`.
 - Change UI copy or add a language: `Localizable.xcstrings`, plus
-  `LocalizedCounts.swift` for plural counts; see **Localization**.
+  `Control/LocalizedCounts.swift` for plural counts; see **Localization**.
 - Change sync status, logging, or CloudKit diagnostics:
-  `Sync/CloudKitSyncMonitor.swift` and the footer in `ContentView.swift`; see
-  **iCloud sync**.
-- Change the license or its in-app presentation: the `LICENSE` file at the
-  repository root and `Views/OpenSourceLicensesView.swift`; see **License**.
+  `Control/Sync/CloudKitSyncMonitor.swift` and the footer in
+  `ContentView.swift`; see **iCloud sync**.
+- Change the license text: the `LICENSE` file at the repository root; see
+  **License**.
 - Change the public project page: `README.md` and the screenshots in
   `docs/images/`.
 
@@ -541,9 +586,10 @@ text — do not paste it into Swift code or the string catalog.
   review intervals, due dates, or per-card history.
 - No archive UI despite `isArchived` plumbing; no reordering of subjects/sets
   (only cards can be moved).
-- No import/export (CSV/Anki), search, or tags.
+- Bulk import only takes text: pasted or a text file. There is no export, no
+  Anki/CSV file import, no search, and no tags.
 - Non-English UI strings are machine translated and have not been reviewed by
-  native speakers; the in-app disclaimer is the only acknowledgement of this.
+  native speakers. The app does not point this out to the user.
 - Rich text is stored as RTF but edited and rendered as plain text.
 - CloudKit sync failures are only logged and summarised in the library footer;
   there is no retry button, no `CKContainer.accountStatus` check, and the model

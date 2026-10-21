@@ -218,7 +218,7 @@ enum MediaStore {
         return FileManager.default.fileExists(atPath: url.path)
     }
 
-    private static func read(_ url: URL) -> Data? {
+    nonisolated private static func read(_ url: URL) -> Data? {
         var coordinationError: NSError?
         var data: Data?
 

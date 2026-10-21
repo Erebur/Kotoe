@@ -24,6 +24,7 @@ struct FlashcardSetEditView: View {
     @State private var isRenaming = false
     @State private var draftName = ""
     @State private var showingAppearance = false
+    @State private var showingImport = false
     @FocusState private var isEditingName: Bool
 
     private var cards: [Flashcard] {
@@ -71,7 +72,9 @@ struct FlashcardSetEditView: View {
             .toolbarVisibility(.hidden, for: .windowToolbar)
             #endif
             .navigationDestination(for: Flashcard.self) { card in
-                FlashcardEditorView(card: card, tint: tint)
+                FlashcardEditorView(card: card, tint: tint) {
+                    addAnotherCard()
+                }
             }
             .toolbar {
                 #if os(iOS)
@@ -85,6 +88,11 @@ struct FlashcardSetEditView: View {
             }
             .sheet(isPresented: $showingAppearance) {
                 appearanceEditor
+            }
+            .sheet(isPresented: $showingImport) {
+                CardImportView { imported in
+                    importCards(imported)
+                }
             }
         }
         .tint(tint)
@@ -287,6 +295,19 @@ struct FlashcardSetEditView: View {
                 Spacer()
 
                 Button {
+                    showingImport = true
+                } label: {
+                    Label(
+                        "setEditView.cards.importCards",
+                        systemImage: "square.and.arrow.down"
+                    )
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tint(tint)
+                .help("setEditView.cards.importHelp")
+
+                Button {
                     addCard()
                 } label: {
                     Label("setEditView.cards.addCard", systemImage: "plus")
@@ -429,7 +450,37 @@ struct FlashcardSetEditView: View {
     }
 
     private func addCard() {
-        let card = Flashcard(position: cards.count)
+        let card = makeCard(at: cards.count)
+
+        flashcardSet.modifiedAt = .now
+
+        // Jump straight into the editor for the new card.
+        path.append(card)
+    }
+
+    /// Creates an empty card at the end of the set and opens it, so a run of
+    /// cards can be typed without going back to the list every time.
+    private func addAnotherCard() {
+        let card = makeCard(at: cards.count)
+
+        flashcardSet.modifiedAt = .now
+
+        try? modelContext.save()
+
+        // The open card editor is replaced instead of stacked, so the back
+        // button returns to the set instead of walking through every card
+        // that was added.
+        if path.isEmpty {
+            path.append(card)
+        } else {
+            path[path.count - 1] = card
+        }
+    }
+
+    /// Creates a card with both sides and attaches it to the set.
+    @discardableResult
+    private func makeCard(at position: Int) -> Flashcard {
+        let card = Flashcard(position: position)
         modelContext.insert(card)
         card.flashcardSet = flashcardSet
 
@@ -441,10 +492,24 @@ struct FlashcardSetEditView: View {
         card.setFront(front)
         card.setBack(back)
 
+        return card
+    }
+
+    /// Adds parsed cards to the end of the set.
+    private func importCards(_ imported: [TextCardImporter.Card]) {
+        var position = cards.count
+
+        for parsed in imported {
+            let card = makeCard(at: position)
+            position += 1
+
+            card.front?.setPlainText(parsed.front)
+            card.back?.setPlainText(parsed.back)
+        }
+
         flashcardSet.modifiedAt = .now
 
-        // Jump straight into the editor for the new card.
-        path.append(card)
+        try? modelContext.save()
     }
 
     private func delete(_ card: Flashcard) {
@@ -652,6 +717,10 @@ struct FlashcardEditorView: View {
     let card: Flashcard
     var tint: Color = KotoeTheme.accent
 
+    /// Creates the next card of the set and opens it. `nil` when the editor
+    /// is used without a set to add to.
+    var onNextCard: (() -> Void)? = nil
+
     var body: some View {
         ZStack {
             AmbientBackground(tint: tint)
@@ -661,6 +730,8 @@ struct FlashcardEditorView: View {
                     #if os(macOS)
                     macBackButton
                     #endif
+
+                    metaRow
 
                     if let front = card.front {
                         SideEditorSection(
@@ -693,6 +764,9 @@ struct FlashcardEditorView: View {
                 .frame(maxWidth: .infinity)
             }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            footer
+        }
         .clearInitialFocusOnMac()
         .tint(tint)
         .navigationTitle("cardEditor.navigation.title")
@@ -703,6 +777,65 @@ struct FlashcardEditorView: View {
         .toolbarVisibility(.hidden, for: .windowToolbar)
         #endif
         .onAppear(perform: ensureSides)
+        .onDisappear(perform: save)
+    }
+
+    // MARK: - Meta
+
+    /// Shows where the card sits in its set.
+    private var metaRow: some View {
+        HStack(spacing: 8) {
+            if let position = positionLabel {
+                Label(position, systemImage: "rectangle.stack")
+            }
+
+            if let set = card.flashcardSet {
+                Text(set.name)
+                    .lineLimit(1)
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    private var positionLabel: String? {
+        guard
+            let set = card.flashcardSet,
+            let index = set.sortedFlashcards.firstIndex(
+                where: { $0.id == card.id }
+            )
+        else { return nil }
+
+        return String(
+            localized: "cardEditor.position.label",
+            defaultValue: "Card \(index + 1) of \(set.sortedFlashcards.count)"
+        )
+    }
+
+    // MARK: - Footer
+
+    private var footer: some View {
+        HStack(spacing: 12) {
+            Button {
+                save()
+            } label: {
+                Label("cardEditor.actions.save", systemImage: "checkmark")
+            }
+            .buttonStyle(.bordered)
+
+            Spacer()
+
+            Button {
+                nextCard()
+            } label: {
+                Label("cardEditor.actions.nextCard", systemImage: "arrow.right")
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(tint)
+            .disabled(onNextCard == nil)
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 14)
     }
 
     #if os(macOS)
@@ -738,10 +871,28 @@ struct FlashcardEditorView: View {
             card.setBack(side)
         }
     }
+
+    // MARK: - Actions
+
+    private func save() {
+        try? modelContext.save()
+    }
+
+    /// Saves the card and moves on to a fresh one.
+    private func nextCard() {
+        save()
+
+        onNextCard?()
+    }
 }
 
 // MARK: - Side Editor
 
+/// Editor for one side of a card.
+///
+/// Text, drawing and file share one screen. A file can be an image, a PDF or
+/// a text file; the picker decides what it becomes. The gallery picker stays
+/// available for photos.
 private struct SideEditorSection: View {
 
     let title: LocalizedStringKey
@@ -756,94 +907,158 @@ private struct SideEditorSection: View {
     @State private var pickerItem: PhotosPickerItem?
     @State private var showingCanvas = false
     @State private var drawingDraft = PKDrawing()
-    @State private var showingPDFImporter = false
+    @State private var showingFileImporter = false
     @State private var showingPDFViewer = false
+    @State private var importError: FileImportError?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
-            HStack(spacing: 12) {
-                IconTile(symbol: systemImage, tint: tint, size: 38)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.headline)
-
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Text(side.contentType.displayName)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(tint)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(tint.opacity(0.10), in: Capsule())
-            }
-
-            Picker(
-                "sideEditor.contentPicker.label",
-                selection: $side.contentType
-            ) {
-                Text("shared.contentType.text")
-                    .tag(FlashcardContentType.richText)
-                Text("shared.contentType.image")
-                    .tag(FlashcardContentType.image)
-                Text("shared.contentType.drawing")
-                    .tag(FlashcardContentType.drawing)
-                Text("shared.contentType.pdf")
-                    .tag(FlashcardContentType.pdf)
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-            .onChange(of: side.contentType) {
-                side.modifiedAt = .now
-                side.flashcard?.modifiedAt = .now
-            }
-
+            header
+            typePicker
             content
         }
         .cardSurface(padding: 18)
         .fileImporter(
-            isPresented: $showingPDFImporter,
-            allowedContentTypes: [.pdf]
+            isPresented: $showingFileImporter,
+            allowedContentTypes: [.item]
         ) { result in
-            importPDF(result)
+            importFile(result)
         }
         .editorCover(isPresented: $showingPDFViewer) {
             if let fileName = side.mediaFileName {
                 PDFDocumentView(fileName: fileName)
             }
         }
+        .alert(
+            importError?.title ?? "sideEditor.file.unsupported.title",
+            isPresented: Binding(
+                get: { importError != nil },
+                set: { isPresented in
+                    if !isPresented { importError = nil }
+                }
+            ),
+            presenting: importError
+        ) { _ in
+            Button("shared.actions.ok", role: .cancel) {}
+        } message: { error in
+            Text(verbatim: error.message)
+        }
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            IconTile(symbol: systemImage, tint: tint, size: 38)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline)
+
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Text(selectedChoice.label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(tint)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(tint.opacity(0.10), in: Capsule())
+        }
+    }
+
+    // MARK: - Type picker
+
+    /// Picks what the side holds. Images and documents share the file entry,
+    /// because the file itself decides which one it is.
+    private var typePicker: some View {
+        HStack(spacing: 4) {
+            ForEach(SideContentChoice.allCases) { choice in
+                Button {
+                    select(choice)
+                } label: {
+                    Label {
+                        Text(choice.label)
+                    } icon: {
+                        Image(systemName: choice.symbolName)
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(
+                                choice == selectedChoice
+                                    ? KotoeTheme.cardBackground
+                                    : Color.clear
+                            )
+                            .shadow(
+                                color: .black.opacity(
+                                    choice == selectedChoice ? 0.10 : 0
+                                ),
+                                radius: 3,
+                                y: 1
+                            )
+                    )
+                    .foregroundStyle(
+                        choice == selectedChoice ? accent : Color.secondary
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(
+            KotoeTheme.fieldBackground,
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("sideEditor.contentPicker.label")
+    }
+
+    /// The entry that matches the content the side currently holds.
+    private var selectedChoice: SideContentChoice {
+        switch side.contentType {
+        case .richText: return .text
+        case .drawing: return .drawing
+        case .image, .pdf: return .file
+        }
+    }
+
+    private func select(_ choice: SideContentChoice) {
+        switch choice {
+        case .text:
+            side.contentType = .richText
+        case .drawing:
+            side.contentType = .drawing
+        case .file:
+            // A PDF stays a PDF; anything else starts as an image.
+            if side.contentType != .pdf {
+                side.contentType = .image
+            }
+        }
+
+        side.modifiedAt = .now
+        side.flashcard?.modifiedAt = .now
     }
 
     @ViewBuilder
     private var content: some View {
         switch side.contentType {
         case .richText:
-            TextField(placeholder, text: textBinding, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(3...12)
-                .padding(12)
-                .background(
-                    KotoeTheme.fieldBackground,
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(KotoeTheme.hairline, lineWidth: 1)
-                )
+            textControls
 
-        case .image:
-            imageControls
+        case .image, .pdf:
+            fileControls
 
         case .drawing:
             drawingControls
-
-        case .pdf:
-            pdfControls
         }
     }
 
@@ -856,16 +1071,26 @@ private struct SideEditorSection: View {
         )
     }
 
-    // MARK: Image
-
-    private var photoActionTitle: LocalizedStringKey {
-        side.hasImage
-            ? "sideEditor.image.replace"
-            : "sideEditor.image.choose"
+    private var textControls: some View {
+        TextField(placeholder, text: textBinding, axis: .vertical)
+            .textFieldStyle(.plain)
+            .lineLimit(3...12)
+            .padding(12)
+            .background(
+                KotoeTheme.fieldBackground,
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(KotoeTheme.hairline, lineWidth: 1)
+            )
     }
 
+    // MARK: File
+
+    /// Preview of the file the side holds, if there is one.
     @ViewBuilder
-    private var imageControls: some View {
+    private var filePreview: some View {
         if side.hasImage {
             ZStack(alignment: .topTrailing) {
                 FlashcardSideContentView(side: side)
@@ -885,30 +1110,160 @@ private struct SideEditorSection: View {
                 }
                 .padding(8)
             }
-        }
+        } else if side.hasPDF {
+            ZStack(alignment: .topTrailing) {
+                PDFSideView(fileName: side.mediaFileName)
+                    .frame(maxWidth: .infinity)
+                    .frame(maxHeight: 260)
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
+                    .padding(8)
+                    .background(
+                        Color.white,
+                        in: RoundedRectangle(
+                            cornerRadius: 12,
+                            style: .continuous
+                        )
+                    )
 
-        PhotosPicker(selection: $pickerItem, matching: .images) {
-            HStack(spacing: 8) {
-                Image(systemName: "photo.on.rectangle.angled")
-                Text(photoActionTitle)
+                removeButton {
+                    side.clearContent()
+                }
+                .padding(8)
             }
-            .font(.subheadline.weight(.medium))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 9)
-            .background(
-                Color.primary.opacity(0.05),
-                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        }
+    }
+
+    @ViewBuilder
+    private var fileControls: some View {
+        VStack(spacing: 10) {
+            filePreview
+
+            if side.hasPDF {
+                Button {
+                    showingPDFViewer = true
+                } label: {
+                    mediaButtonLabel(
+                        title: "sideEditor.pdf.view",
+                        systemImage: "arrow.up.left.and.arrow.down.right"
+                    )
+                }
+                .buttonStyle(.plain)
+                .tint(accent)
+            }
+
+            HStack(spacing: 10) {
+                fileButton
+
+                PhotosPicker(selection: $pickerItem, matching: .images) {
+                    mediaButtonLabel(
+                        title: galleryActionTitle,
+                        systemImage: "photo.on.rectangle.angled"
+                    )
+                }
+                .tint(accent)
+                .onChange(of: pickerItem) { _, item in
+                    guard let item else { return }
+
+                    Task {
+                        if let data = try? await item.loadTransferable(
+                            type: Data.self
+                        ) {
+                            side.updateImage(data)
+                        }
+                        pickerItem = nil
+                    }
+                }
+            }
+
+            fileHint
+        }
+    }
+
+    private var fileActionTitle: LocalizedStringKey {
+        side.mediaFileName == nil
+            ? "sideEditor.file.choose"
+            : "sideEditor.file.replace"
+    }
+
+    private var galleryActionTitle: LocalizedStringKey {
+        side.hasImage
+            ? "sideEditor.image.replace"
+            : "sideEditor.image.choose"
+    }
+
+    /// One picker for images and documents. It accepts every file and lets
+    /// the content decide which kind of side the file becomes.
+    private var fileButton: some View {
+        Button {
+            showingFileImporter = true
+        } label: {
+            mediaButtonLabel(
+                title: fileActionTitle,
+                systemImage: "folder"
             )
         }
+        .buttonStyle(.plain)
         .tint(accent)
-        .onChange(of: pickerItem) { _, item in
-            guard let item else { return }
+    }
 
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self) {
-                    side.updateImage(data)
-                }
-                pickerItem = nil
+    private func mediaButtonLabel(
+        title: LocalizedStringKey,
+        systemImage: String
+    ) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+            Text(title)
+        }
+        .font(.subheadline.weight(.medium))
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 9)
+        .background(
+            Color.primary.opacity(0.05),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+    }
+
+    /// Reminds what the file picker accepts, since it takes every file.
+    private var fileHint: some View {
+        Text("sideEditor.file.hint")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func importFile(_ result: Result<URL, Error>) {
+        guard case .success(let url) = result else {
+            if case .failure(let error) = result {
+                print("[Media] File import failed: \(error)")
+            }
+            return
+        }
+
+        Task { @MainActor in
+            let outcome = await Task.detached(priority: .userInitiated) {
+                ImportedFile.read(url: url)
+            }.value
+
+            switch outcome {
+            case .imported(.image(let data)):
+                side.updateImage(data)
+
+            case .imported(.pdf(let data)):
+                side.updatePDF(data)
+
+            case .imported(.text(let text)):
+                side.setPlainText(text)
+
+            case .unsupported(let fileName):
+                importError = FileImportError(
+                    fileName: fileName,
+                    kind: .unsupported
+                )
+
+            case .failed(let fileName):
+                importError = FileImportError(fileName: fileName, kind: .failed)
             }
         }
     }
@@ -966,16 +1321,9 @@ private struct SideEditorSection: View {
                 showingCanvas = true
             }
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "pencil.tip.crop.circle")
-                Text(drawingActionTitle)
-            }
-            .font(.subheadline.weight(.medium))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 9)
-            .background(
-                Color.primary.opacity(0.05),
-                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            mediaButtonLabel(
+                title: drawingActionTitle,
+                systemImage: "pencil.tip.crop.circle"
             )
         }
         .buttonStyle(.plain)
@@ -984,110 +1332,6 @@ private struct SideEditorSection: View {
             DrawingEditorView(initial: drawingDraft) { drawing in
                 side.updateDrawing(drawing)
             }
-        }
-    }
-
-    // MARK: PDF
-
-    private var pdfActionTitle: LocalizedStringKey {
-        side.hasPDF
-            ? "sideEditor.pdf.replace"
-            : "sideEditor.pdf.choose"
-    }
-
-    @ViewBuilder
-    private var pdfControls: some View {
-        if side.hasPDF {
-            ZStack(alignment: .topTrailing) {
-                PDFSideView(fileName: side.mediaFileName)
-                    .frame(maxWidth: .infinity)
-                    .frame(maxHeight: 260)
-                    .clipShape(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    )
-                    .padding(8)
-                    .background(
-                        Color.white,
-                        in: RoundedRectangle(
-                            cornerRadius: 12,
-                            style: .continuous
-                        )
-                    )
-
-                removeButton {
-                    side.clearContent()
-                }
-                .padding(8)
-            }
-
-            Button {
-                showingPDFViewer = true
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    Text("sideEditor.pdf.view")
-                }
-                .font(.subheadline.weight(.medium))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 9)
-                .background(
-                    Color.primary.opacity(0.05),
-                    in: RoundedRectangle(
-                        cornerRadius: 10,
-                        style: .continuous
-                    )
-                )
-            }
-            .buttonStyle(.plain)
-            .tint(accent)
-        }
-
-        Button {
-            showingPDFImporter = true
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "doc.badge.plus")
-                Text(pdfActionTitle)
-            }
-            .font(.subheadline.weight(.medium))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 9)
-            .background(
-                Color.primary.opacity(0.05),
-                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-            )
-        }
-        .buttonStyle(.plain)
-        .tint(accent)
-    }
-
-    private func importPDF(_ result: Result<URL, Error>) {
-        guard case .success(let url) = result else {
-            if case .failure(let error) = result {
-                print("[Media] PDF import failed: \(error)")
-            }
-            return
-        }
-
-        Task { @MainActor in
-            let data = await Task.detached(priority: .userInitiated) {
-                () -> Data? in
-                let isScoped = url.startAccessingSecurityScopedResource()
-                defer {
-                    if isScoped {
-                        url.stopAccessingSecurityScopedResource()
-                    }
-                }
-
-                return try? Data(contentsOf: url)
-            }.value
-
-            guard let data else {
-                print("[Media] Could not read \(url.lastPathComponent)")
-                return
-            }
-
-            side.updatePDF(data)
         }
     }
 
@@ -1101,5 +1345,78 @@ private struct SideEditorSection: View {
         }
         .buttonStyle(.plain)
         .help("sideEditor.removeContent.help")
+    }
+}
+
+// MARK: - Content choice
+
+/// What a card side can hold, as offered by the side editor.
+///
+/// Images and documents share the file entry: the file itself decides which
+/// one a side ends up with.
+private enum SideContentChoice: String, CaseIterable, Identifiable {
+
+    case text
+    case drawing
+    case file
+
+    var id: String { rawValue }
+
+    var symbolName: String {
+        switch self {
+        case .text: return "text.alignleft"
+        case .drawing: return "pencil.tip"
+        case .file: return "paperclip"
+        }
+    }
+
+    var label: LocalizedStringKey {
+        switch self {
+        case .text: return "shared.contentType.text"
+        case .drawing: return "shared.contentType.drawing"
+        case .file: return "shared.contentType.file"
+        }
+    }
+}
+
+// MARK: - File import error
+
+/// A file that could not be added to a card.
+private struct FileImportError: Identifiable {
+
+    enum Kind {
+        case unsupported
+        case failed
+    }
+
+    let id = UUID()
+    let fileName: String
+    let kind: Kind
+
+    var title: LocalizedStringKey {
+        switch kind {
+        case .unsupported:
+            return "sideEditor.file.unsupported.title"
+        case .failed:
+            return "sideEditor.file.failed.title"
+        }
+    }
+
+    var message: String {
+        let name = fileName
+
+        switch kind {
+        case .unsupported:
+            return String(
+                localized: "sideEditor.file.unsupported.message",
+                defaultValue:
+                    "“\(name)” is not supported. Use an image, PDF, or text."
+            )
+        case .failed:
+            return String(
+                localized: "sideEditor.file.failed.message",
+                defaultValue: "“\(name)” could not be read."
+            )
+        }
     }
 }

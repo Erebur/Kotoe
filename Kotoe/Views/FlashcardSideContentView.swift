@@ -5,6 +5,7 @@
 //  Created by Simon Weber on 20.10.26.
 //
 
+import ImageIO
 import PencilKit
 import SwiftUI
 
@@ -63,16 +64,16 @@ extension FlashcardSide {
                 : text
         case .image:
             return hasImage
-                ? String(localized: "shared.contentType.image")
-                : String(localized: "sideContent.summary.emptyImage")
+                ? contentType.displayName
+                : String(localized: "sideContent.summary.emptyFile")
         case .drawing:
             return hasDrawing
-                ? String(localized: "shared.contentType.drawing")
+                ? contentType.displayName
                 : String(localized: "sideContent.summary.emptyDrawing")
         case .pdf:
             return hasPDF
-                ? String(localized: "shared.contentType.pdf")
-                : String(localized: "sideContent.summary.emptyPDF")
+                ? contentType.displayName
+                : String(localized: "sideContent.summary.emptyFile")
         }
     }
 }
@@ -248,7 +249,15 @@ private struct SideDrawingView: View {
 }
 
 /// Creates a SwiftUI image using the native image type of each platform.
+///
+/// ImageIO decodes first, because it knows every format the system supports
+/// (JPEG, PNG, HEIC, GIF, TIFF, BMP, WebP). The native initializer stays as
+/// a fallback for data ImageIO cannot open.
 private func platformImage(from data: Data) -> Image? {
+    if let image = imageFromImageIO(data) {
+        return image
+    }
+
     #if os(macOS)
 
     guard let nsImage = NSImage(data: data) else { return nil }
@@ -258,6 +267,39 @@ private func platformImage(from data: Data) -> Image? {
 
     guard let uiImage = UIImage(data: data) else { return nil }
     return Image(uiImage: uiImage)
+
+    #endif
+}
+
+/// Decodes the first frame of an image with ImageIO.
+///
+/// A thumbnail is created so a large photo does not have to be decoded at
+/// full size, and the EXIF orientation is applied while it happens.
+private func imageFromImageIO(_ data: Data) -> Image? {
+    let options: [CFString: Any] = [
+        kCGImageSourceCreateThumbnailFromImageAlways: true,
+        kCGImageSourceCreateThumbnailWithTransform: true,
+        kCGImageSourceShouldCacheImmediately: true,
+        kCGImageSourceThumbnailMaxPixelSize: 4096,
+    ]
+
+    guard
+        let source = CGImageSourceCreateWithData(data as CFData, nil),
+        let cgImage = CGImageSourceCreateThumbnailAtIndex(
+            source,
+            0,
+            options as CFDictionary
+        )
+    else { return nil }
+
+    #if os(macOS)
+
+    let size = NSSize(width: cgImage.width, height: cgImage.height)
+    return Image(nsImage: NSImage(cgImage: cgImage, size: size))
+
+    #else
+
+    return Image(uiImage: UIImage(cgImage: cgImage))
 
     #endif
 }
