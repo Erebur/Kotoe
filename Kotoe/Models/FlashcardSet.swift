@@ -60,3 +60,15 @@ final class FlashcardSet {
             .sorted { $0.position < $1.position }
     }
 }
+
+// MARK: - Media Cleanup
+
+extension FlashcardSet {
+
+    /// Deletes the media files of every card. Call before deleting the set.
+    func removeMediaFiles() {
+        for card in flashcards ?? [] {
+            card.removeMediaFiles()
+        }
+    }
+}

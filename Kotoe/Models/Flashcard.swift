@@ -14,6 +14,7 @@ enum FlashcardContentType: String, Codable {
     case richText
     case image
     case drawing
+    case pdf
 }
 
 // MARK: - Flashcard Side Role
@@ -97,5 +98,17 @@ final class Flashcard {
 
         sides = currentSides
         modifiedAt = .now
+    }
+}
+
+// MARK: - Media Cleanup
+
+extension Flashcard {
+
+    /// Deletes the media files of every side. Call before deleting the card.
+    func removeMediaFiles() {
+        for side in sides ?? [] {
+            side.removeMediaFile()
+        }
     }
 }

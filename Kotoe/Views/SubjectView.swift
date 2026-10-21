@@ -653,6 +653,7 @@ struct SubjectView: View {
 
     private func delete(_ set: FlashcardSet) {
         withAnimation(.snappy(duration: 0.35)) {
+            set.removeMediaFiles()
             modelContext.delete(set)
         }
 

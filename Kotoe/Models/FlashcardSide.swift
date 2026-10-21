@@ -25,11 +25,16 @@ final class FlashcardSide {
     /// Rich text serialized as RTF or another chosen attributed-string format.
     var richTextData: Data?
 
-    /// Encoded image data, for example JPEG or PNG.
+    /// Legacy inline image data. New photos are written to `MediaStore` and
+    /// referenced by `mediaFileName`; this stays for cards created earlier.
     var imageData: Data?
 
-    /// Serialized PencilKit drawing from PKDrawing.dataRepresentation().
+    /// Legacy inline PencilKit drawing data. New drawings are written to
+    /// `MediaStore` and referenced by `mediaFileName`.
     var drawingData: Data?
+
+    /// File name in `MediaStore` for image, drawing, or PDF content.
+    var mediaFileName: String? = nil
 
     // MARK: Metadata
 
@@ -47,7 +52,8 @@ final class FlashcardSide {
         contentType: FlashcardContentType = .richText,
         richTextData: Data? = nil,
         imageData: Data? = nil,
-        drawingData: Data? = nil
+        drawingData: Data? = nil,
+        mediaFileName: String? = nil
     ) {
         self.id = UUID()
 
@@ -57,6 +63,7 @@ final class FlashcardSide {
         self.richTextData = richTextData
         self.imageData = imageData
         self.drawingData = drawingData
+        self.mediaFileName = mediaFileName
 
         self.createdAt = .now
         self.modifiedAt = .now
@@ -70,40 +77,159 @@ final class FlashcardSide {
         richTextData = data
         imageData = nil
         drawingData = nil
+        clearMediaFile()
 
-        modifiedAt = .now
-        flashcard?.modifiedAt = .now
+        touch()
     }
 
-    func updateImage(_ data: Data) {
-        contentType = .image
+    /// Stores a photo at its original resolution in the media folder.
+    @discardableResult
+    func updateImage(_ data: Data) -> Bool {
+        guard
+            let name = MediaStore.save(
+                data: data,
+                fileExtension: MediaStore.imageExtension(for: data)
+            )
+        else {
+            return false
+        }
 
-        richTextData = nil
-        imageData = data
-        drawingData = nil
-
-        modifiedAt = .now
-        flashcard?.modifiedAt = .now
+        replaceMedia(with: name, contentType: .image)
+        return true
     }
 
-    func updateDrawing(_ data: Data) {
-        contentType = .drawing
+    /// Stores encoded PencilKit drawing data in the media folder.
+    @discardableResult
+    func updateDrawing(_ data: Data) -> Bool {
+        guard let name = MediaStore.save(data: data, fileExtension: "pkdrawing")
+        else {
+            return false
+        }
 
-        richTextData = nil
-        imageData = nil
-        drawingData = data
+        replaceMedia(with: name, contentType: .drawing)
+        return true
+    }
 
-        modifiedAt = .now
-        flashcard?.modifiedAt = .now
+    /// Stores a PDF document in the media folder.
+    @discardableResult
+    func updatePDF(_ data: Data) -> Bool {
+        guard let name = MediaStore.save(data: data, fileExtension: "pdf")
+        else {
+            return false
+        }
+
+        replaceMedia(with: name, contentType: .pdf)
+        return true
     }
 
     func clearContent() {
         richTextData = nil
         imageData = nil
         drawingData = nil
+        clearMediaFile()
 
+        touch()
+    }
+
+    // MARK: Media Storage
+
+    private func replaceMedia(
+        with name: String,
+        contentType: FlashcardContentType
+    ) {
+        let previousName = mediaFileName
+
+        self.contentType = contentType
+        richTextData = nil
+        imageData = nil
+        drawingData = nil
+        mediaFileName = name
+
+        if let previousName, previousName != name {
+            MediaStore.remove(named: previousName)
+        }
+
+        touch()
+    }
+
+    private func clearMediaFile() {
+        guard let mediaFileName else { return }
+        MediaStore.remove(named: mediaFileName)
+        self.mediaFileName = nil
+    }
+
+    private func touch() {
         modifiedAt = .now
         flashcard?.modifiedAt = .now
+    }
+}
+
+// MARK: - Media Access
+
+extension FlashcardSide {
+
+    /// Whether image content exists, including an iCloud placeholder that has
+    /// not been downloaded yet.
+    var hasImage: Bool {
+        if let mediaFileName {
+            return MediaStore.hasFile(named: mediaFileName)
+        }
+        return imageData != nil
+    }
+
+    /// Whether drawing content exists, including an iCloud placeholder.
+    var hasDrawing: Bool {
+        if let mediaFileName {
+            return MediaStore.hasFile(named: mediaFileName)
+        }
+        return drawingData != nil
+    }
+
+    /// Whether PDF content exists, including an iCloud placeholder.
+    var hasPDF: Bool {
+        guard contentType == .pdf, let mediaFileName else { return false }
+        return MediaStore.hasFile(named: mediaFileName)
+    }
+
+    /// Image bytes already on this device, falling back to legacy inline data.
+    var storedImageData: Data? {
+        if let mediaFileName {
+            return MediaStore.dataIfDownloaded(named: mediaFileName)
+        }
+        return imageData
+    }
+
+    /// Drawing bytes already on this device, falling back to legacy inline
+    /// data.
+    var storedDrawingData: Data? {
+        if let mediaFileName {
+            return MediaStore.dataIfDownloaded(named: mediaFileName)
+        }
+        return drawingData
+    }
+
+    /// Loads image bytes, waiting for an iCloud Drive download when needed.
+    func loadImageData() async -> Data? {
+        if let mediaFileName {
+            return await MediaStore.loadData(named: mediaFileName) ?? imageData
+        }
+        return imageData
+    }
+
+    /// Removes the stored media file without altering the rest of the model.
+    /// Call this before the side is deleted.
+    func removeMediaFile() {
+        guard let mediaFileName else { return }
+        MediaStore.remove(named: mediaFileName)
+        self.mediaFileName = nil
+    }
+
+    /// Loads drawing bytes, waiting for an iCloud Drive download when needed.
+    func loadDrawingData() async -> Data? {
+        if let mediaFileName {
+            return await MediaStore.loadData(named: mediaFileName) ?? drawingData
+        }
+        return drawingData
     }
 }
 
@@ -111,27 +237,18 @@ final class FlashcardSide {
 
 extension FlashcardSide {
 
-    /// Returns the stored PencilKit drawing, if available.
+    /// Returns the stored PencilKit drawing, if it is already on this device.
     var pencilKitDrawing: PKDrawing? {
         guard contentType == .drawing,
-              let drawingData else {
+              let storedDrawingData else {
             return nil
         }
 
-        return try? PKDrawing(data: drawingData)
+        return try? PKDrawing(data: storedDrawingData)
     }
 
     /// Stores a PencilKit drawing and updates modification dates.
     func updateDrawing(_ drawing: PKDrawing) {
-        let data = drawing.dataRepresentation()
-
-        if data.count > 700_000 {
-            print(
-                "[CloudKit] Drawing is \(data.count) bytes; "
-                    + "CloudKit records are limited to 1 MB."
-            )
-        }
-
-        updateDrawing(data)
+        updateDrawing(drawing.dataRepresentation())
     }
 }

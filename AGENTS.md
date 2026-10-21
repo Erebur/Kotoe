@@ -9,8 +9,8 @@
 **Kōtoe** (product name; source folder is `Kotoe/`) is a native Apple flashcard
 study app. Users organize cards into subjects and sets, then review them in a
 tap-to-flip study session, marking each card **Got It** or **Again** (missed
-cards cycle back to the end of the queue). Cards can have text, photo, or
-hand-drawn (PencilKit) content on each side. Data is stored locally with
+cards cycle back to the end of the queue). Cards can have text, photo,
+hand-drawn, or PDF content on each side. Data is stored locally with
 SwiftData and synced through the user's iCloud/CloudKit account.
 
 It is an early-stage app: the UI and data model for the core loop exist; spaced
@@ -29,7 +29,7 @@ repetition scheduling, archiving, import/export, search, and tests do not.
 | Bundle ID | `com.erebur.kotoe`, team `XMGF5HVWMW` |
 | Localization | String Catalog; English source plus de, es, fr, ja |
 | Dependencies | None. No SPM packages, CocoaPods, or generated code. |
-| Libraries used | SwiftUI, SwiftData, PencilKit, PhotosUI |
+| Libraries used | SwiftUI, SwiftData, PencilKit, PhotosUI, PDFKit, ImageIO |
 
 The Xcode project uses a **file-system-synchronized group**, so any `.swift`
 file added anywhere under `Kotoe/` is compiled automatically. Do **not**
@@ -232,6 +232,8 @@ Kotoe/
   ContentView.swift              Subject list (root screen)
   Sync/
     CloudKitSyncMonitor.swift    CloudKit event observer + sync status
+  Media/
+    MediaStore.swift             iCloud Drive file storage for card media
   Models/
     Subject.swift                top level: subject
     FlashcardSet.swift           flashcards belonging to a subject
@@ -241,8 +243,9 @@ Kotoe/
     SubjectView.swift            subject detail, sets, notes, "Study All"
     StudyView.swift              study session + FlipCard
     FlashcardSetEditView.swift   set editor, card editor, side editor
-    FlashcardSideContentView.swift  rendering, image compression,
+    FlashcardSideContentView.swift  rendering, media loading,
                                     PencilKit canvases, DrawingEditorView
+    PDFViewer.swift                PDFKit wrapper + full document viewer
     Helper/
       PlatformModifiers.swift    cross-platform view modifiers
       IconButton.swift           shared button + `if` modifier
@@ -265,13 +268,16 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
   SwiftData requires optional or defaulted attributes.
 - Do not add `@Attribute(.unique)` — CloudKit does not support unique
   constraints.
-- A side's payload is a `Data` blob chosen by `contentType`:
+- A side's payload is chosen by `contentType`:
   - `.richText` → `richTextData` (RTF; currently edited as plain text)
-  - `.image` → `imageData` (JPEG, downscaled to 1600 px and recompressed until
-    it fits under 700 KB, so the CloudKit record stays below its 1 MB limit)
-  - `.drawing` → `drawingData` (`PKDrawing.dataRepresentation()`)
-  Only one payload is populated at a time; use the `updateRichText`,
-  `updateImage`, `updateDrawing`, and `clearContent` helpers.
+  - `.image` → `mediaFileName` (original JPEG/HEIC/PNG file)
+  - `.drawing` → `mediaFileName` (`PKDrawing.dataRepresentation()`, vector)
+  - `.pdf` → `mediaFileName` (imported PDF document)
+  `mediaFileName` names a file in `MediaStore`, not a CloudKit attribute.
+  Cards created before the media store still read legacy `imageData` /
+  `drawingData` blobs. Only one payload is populated at a time; use
+  `updateRichText`, `updateImage`, `updateDrawing`, `updatePDF`, and
+  `clearContent` (which also deletes the file).
 - `isArchived` and `position` exist on all levels. `sortedFlashcardSets` and
   `sortedFlashcards` filter archived items and sort by `position`. There is no
   archive UI yet, but queries and computed properties already respect the flag.
@@ -305,10 +311,18 @@ in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
 - Imports run through `NSPersistentStoreRemoteChange` and normally refresh
   `@Query` results without extra work. When data looks missing, relaunch before
   assuming it never synced — TN3164 lists this first.
-- A CloudKit record is limited to 1 MB, and SwiftData keeps each side's payload
-  inline. `FlashcardSide.compressedImageData(from:)` recompresses photos until
-  they fit under 700 KB; drawings only log a warning as they approach the limit.
-  Any new inline `Data` attribute needs the same guard.
+- Card media is not part of the SwiftData record. `MediaStore` writes photos,
+  drawings, and PDFs to the app's iCloud Drive container (`Documents/Media`),
+  so full-resolution files stay clear of CloudKit's 1 MB record limit and sync
+  through iCloud Drive. The model only carries the file name, so a record can
+  arrive on another device before its file. Views load media through
+  `MediaStore.loadData(named:)` / `loadURL(named:)`, which wait for the
+  iCloud download; `hasFile(named:)` also counts `.name.icloud` placeholders.
+- The iCloud Documents capability is declared in `Kōtoe.entitlements`
+  (`CloudDocuments` + `ubiquity-container-identifiers`) and
+  `NSUbiquitousContainers` in `Info.plist`. The document scope is public, so
+  the `Media` folder is visible in iCloud Drive / Files. When iCloud Drive is
+  unavailable, `MediaStore` falls back to Application Support on that device.
 - Cascade deletes are applied by the deleting device and then exported. A child
   whose parent ends up `nil` is invisible: the library only counts reachable
   sets and cards, so it looks like data loss. Such orphans were found in the
@@ -424,6 +438,13 @@ in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
   footer fill.
 - Images render through `NSImage`/`UIImage` helpers, and drawings are rendered
   in light mode so ink matches the white canvas.
+- PDFKit's `PDFView` is wrapped separately per platform in `PDFViewer.swift`.
+  It is interactive (scrollable), so a PDF on a study card can swallow the
+  tap-to-flip gesture; the study controls remain the reliable way to flip.
+- `.fileImporter` URLs are security scoped. On macOS the app needs
+  `com.apple.security.files.user-selected.read-only`, and imports must call
+  `startAccessingSecurityScopedResource()` before reading and balance it with
+  `stopAccessingSecurityScopedResource()`.
 
 ## Where to change what
 
@@ -432,6 +453,10 @@ in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
 - Change study behavior (queue, scoring, shuffling): `StudyView.swift`.
 - Change card rendering or add a content type: `FlashcardSideContentView.swift`
   plus the `FlashcardContentType` enum and the side editor's picker.
+- Change card media storage: `Media/MediaStore.swift`; the side's file-based
+  helpers live in `Models/FlashcardSide.swift`. PDF import and viewing go
+  through `Views/PDFViewer.swift` and the side editor in
+  `FlashcardSetEditView.swift`.
 - Change persistence/schema: `FlashApp.swift` schema list plus the models;
   remember CloudKit defaults and that local stores may need a migration.
 - New subject/set flows and list styling: `ContentView.swift`,
@@ -459,6 +484,10 @@ in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
   container still calls `fatalError` when it cannot be created.
 - Orphaned sets/cards (a `nil` parent left behind by a cascade delete on another
   device) have no UI and no repair pass, so they are invisible but still stored.
+- Deleting a card locally calls `removeMediaFiles()` before
+  `modelContext.delete`, but a cascade delete applied by another device leaves
+  its iCloud Drive media file behind. There is no background sweep for
+  unreferenced files yet.
 - The push-notification entitlement and background mode are only there for
   SwiftData's CloudKit mirror; the app has no notification code of its own. No
   tests.

@@ -70,3 +70,15 @@ final class Subject {
         allCards.count
     }
 }
+
+// MARK: - Media Cleanup
+
+extension Subject {
+
+    /// Deletes the media files of every card. Call before deleting the subject.
+    func removeMediaFiles() {
+        for set in flashcardSets ?? [] {
+            set.removeMediaFiles()
+        }
+    }
+}

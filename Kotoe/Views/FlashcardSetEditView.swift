@@ -9,6 +9,7 @@ import PencilKit
 import PhotosUI
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Opens when a set is edited. Edit the set's name and notes, and add,
 /// reorder, delete and edit its cards.
@@ -450,6 +451,7 @@ struct FlashcardSetEditView: View {
         let remaining = cards.filter { $0.id != card.id }
 
         withAnimation(.snappy(duration: 0.3)) {
+            card.removeMediaFiles()
             modelContext.delete(card)
 
             for (index, remainingCard) in remaining.enumerated() {
@@ -754,6 +756,8 @@ private struct SideEditorSection: View {
     @State private var pickerItem: PhotosPickerItem?
     @State private var showingCanvas = false
     @State private var drawingDraft = PKDrawing()
+    @State private var showingPDFImporter = false
+    @State private var showingPDFViewer = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
@@ -789,6 +793,8 @@ private struct SideEditorSection: View {
                     .tag(FlashcardContentType.image)
                 Text("shared.contentType.drawing")
                     .tag(FlashcardContentType.drawing)
+                Text("shared.contentType.pdf")
+                    .tag(FlashcardContentType.pdf)
             }
             .labelsHidden()
             .pickerStyle(.segmented)
@@ -800,6 +806,17 @@ private struct SideEditorSection: View {
             content
         }
         .cardSurface(padding: 18)
+        .fileImporter(
+            isPresented: $showingPDFImporter,
+            allowedContentTypes: [.pdf]
+        ) { result in
+            importPDF(result)
+        }
+        .editorCover(isPresented: $showingPDFViewer) {
+            if let fileName = side.mediaFileName {
+                PDFDocumentView(fileName: fileName)
+            }
+        }
     }
 
     @ViewBuilder
@@ -824,6 +841,9 @@ private struct SideEditorSection: View {
 
         case .drawing:
             drawingControls
+
+        case .pdf:
+            pdfControls
         }
     }
 
@@ -839,14 +859,14 @@ private struct SideEditorSection: View {
     // MARK: Image
 
     private var photoActionTitle: LocalizedStringKey {
-        side.imageData == nil
-            ? "sideEditor.image.choose"
-            : "sideEditor.image.replace"
+        side.hasImage
+            ? "sideEditor.image.replace"
+            : "sideEditor.image.choose"
     }
 
     @ViewBuilder
     private var imageControls: some View {
-        if side.imageData != nil {
+        if side.hasImage {
             ZStack(alignment: .topTrailing) {
                 FlashcardSideContentView(side: side)
                     .frame(maxWidth: .infinity)
@@ -886,9 +906,7 @@ private struct SideEditorSection: View {
 
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self) {
-                    side.updateImage(
-                        FlashcardSide.compressedImageData(from: data)
-                    )
+                    side.updateImage(data)
                 }
                 pickerItem = nil
             }
@@ -898,14 +916,14 @@ private struct SideEditorSection: View {
     // MARK: Drawing
 
     private var drawingActionTitle: LocalizedStringKey {
-        side.drawingData == nil
-            ? "sideEditor.drawing.draw"
-            : "sideEditor.drawing.edit"
+        side.hasDrawing
+            ? "sideEditor.drawing.edit"
+            : "sideEditor.drawing.draw"
     }
 
     @ViewBuilder
     private var drawingControls: some View {
-        if side.drawingData != nil {
+        if side.hasDrawing {
             ZStack(alignment: .topTrailing) {
                 FlashcardSideContentView(side: side)
                     .frame(maxWidth: .infinity)
@@ -927,8 +945,26 @@ private struct SideEditorSection: View {
         }
 
         Button {
-            drawingDraft = side.pencilKitDrawing ?? PKDrawing()
-            showingCanvas = true
+            // A drawing that only exists as an iCloud placeholder has to be
+            // downloaded before the editor opens; otherwise saving a blank
+            // canvas would replace it.
+            Task { @MainActor in
+                if side.hasDrawing {
+                    guard
+                        let data = await side.loadDrawingData(),
+                        let drawing = try? PKDrawing(data: data)
+                    else {
+                        print("[Media] Drawing is not available yet.")
+                        return
+                    }
+
+                    drawingDraft = drawing
+                } else {
+                    drawingDraft = PKDrawing()
+                }
+
+                showingCanvas = true
+            }
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "pencil.tip.crop.circle")
@@ -948,6 +984,110 @@ private struct SideEditorSection: View {
             DrawingEditorView(initial: drawingDraft) { drawing in
                 side.updateDrawing(drawing)
             }
+        }
+    }
+
+    // MARK: PDF
+
+    private var pdfActionTitle: LocalizedStringKey {
+        side.hasPDF
+            ? "sideEditor.pdf.replace"
+            : "sideEditor.pdf.choose"
+    }
+
+    @ViewBuilder
+    private var pdfControls: some View {
+        if side.hasPDF {
+            ZStack(alignment: .topTrailing) {
+                PDFSideView(fileName: side.mediaFileName)
+                    .frame(maxWidth: .infinity)
+                    .frame(maxHeight: 260)
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
+                    .padding(8)
+                    .background(
+                        Color.white,
+                        in: RoundedRectangle(
+                            cornerRadius: 12,
+                            style: .continuous
+                        )
+                    )
+
+                removeButton {
+                    side.clearContent()
+                }
+                .padding(8)
+            }
+
+            Button {
+                showingPDFViewer = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    Text("sideEditor.pdf.view")
+                }
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 9)
+                .background(
+                    Color.primary.opacity(0.05),
+                    in: RoundedRectangle(
+                        cornerRadius: 10,
+                        style: .continuous
+                    )
+                )
+            }
+            .buttonStyle(.plain)
+            .tint(accent)
+        }
+
+        Button {
+            showingPDFImporter = true
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "doc.badge.plus")
+                Text(pdfActionTitle)
+            }
+            .font(.subheadline.weight(.medium))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background(
+                Color.primary.opacity(0.05),
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
+        }
+        .buttonStyle(.plain)
+        .tint(accent)
+    }
+
+    private func importPDF(_ result: Result<URL, Error>) {
+        guard case .success(let url) = result else {
+            if case .failure(let error) = result {
+                print("[Media] PDF import failed: \(error)")
+            }
+            return
+        }
+
+        Task { @MainActor in
+            let data = await Task.detached(priority: .userInitiated) {
+                () -> Data? in
+                let isScoped = url.startAccessingSecurityScopedResource()
+                defer {
+                    if isScoped {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                }
+
+                return try? Data(contentsOf: url)
+            }.value
+
+            guard let data else {
+                print("[Media] Could not read \(url.lastPathComponent)")
+                return
+            }
+
+            side.updatePDF(data)
         }
     }
 

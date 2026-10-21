@@ -62,135 +62,18 @@ extension FlashcardSide {
                 ? String(localized: "shared.content.empty")
                 : text
         case .image:
-            return imageData == nil
-                ? String(localized: "sideContent.summary.emptyImage")
-                : String(localized: "shared.contentType.image")
+            return hasImage
+                ? String(localized: "shared.contentType.image")
+                : String(localized: "sideContent.summary.emptyImage")
         case .drawing:
-            return drawingData == nil
-                ? String(localized: "sideContent.summary.emptyDrawing")
-                : String(localized: "shared.contentType.drawing")
+            return hasDrawing
+                ? String(localized: "shared.contentType.drawing")
+                : String(localized: "sideContent.summary.emptyDrawing")
+        case .pdf:
+            return hasPDF
+                ? String(localized: "shared.contentType.pdf")
+                : String(localized: "sideContent.summary.emptyPDF")
         }
-    }
-
-    /// CloudKit limits a record to 1 MB, and SwiftData stores each side's
-    /// payload inline in its record, so photos are recompressed until they fit
-    /// under `byteLimit` instead of stalling the export queue.
-    static func compressedImageData(
-        from data: Data,
-        maxDimension: CGFloat = 1600,
-        byteLimit: Int = 700_000
-    ) -> Data {
-        var dimension = maxDimension
-        var quality: CGFloat = 0.85
-        let floorDimension = min(700, maxDimension)
-
-        while true {
-            guard
-                let encoded = jpegData(
-                    from: data,
-                    maxDimension: dimension,
-                    quality: quality
-                )
-            else {
-                // The image could not be decoded; keep the original bytes.
-                return data
-            }
-
-            let isAtFloor = dimension <= floorDimension && quality <= 0.45
-            if encoded.count <= byteLimit || isAtFloor {
-                return encoded
-            }
-
-            if quality > 0.5 {
-                quality = max(0.45, quality - 0.15)
-            } else {
-                dimension = max(floorDimension, dimension * 0.7)
-            }
-        }
-    }
-
-    private static func jpegData(
-        from data: Data,
-        maxDimension: CGFloat,
-        quality: CGFloat
-    ) -> Data? {
-        #if os(macOS)
-
-        guard
-            let image = NSImage(data: data),
-            let cgImage = image.cgImage(
-                forProposedRect: nil,
-                context: nil,
-                hints: nil
-            )
-        else {
-            return nil
-        }
-
-        let originalSize = CGSize(
-            width: cgImage.width,
-            height: cgImage.height
-        )
-
-        let largest = max(originalSize.width, originalSize.height)
-        guard largest > 0 else { return nil }
-
-        let scale = min(1, maxDimension / largest)
-        let size = CGSize(
-            width: originalSize.width * scale,
-            height: originalSize.height * scale
-        )
-
-        guard
-            let bitmap = NSBitmapImageRep(
-                bitmapDataPlanes: nil,
-                pixelsWide: max(1, Int(size.width.rounded())),
-                pixelsHigh: max(1, Int(size.height.rounded())),
-                bitsPerSample: 8,
-                samplesPerPixel: 4,
-                hasAlpha: true,
-                isPlanar: false,
-                colorSpaceName: .deviceRGB,
-                bytesPerRow: 0,
-                bitsPerPixel: 0
-            ),
-            let graphics = NSGraphicsContext(bitmapImageRep: bitmap)
-        else {
-            return nil
-        }
-
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = graphics
-        graphics.imageInterpolation = .high
-        graphics.cgContext.draw(cgImage, in: CGRect(origin: .zero, size: size))
-        graphics.flushGraphics()
-        NSGraphicsContext.restoreGraphicsState()
-
-        return bitmap.representation(
-            using: .jpeg,
-            properties: [.compressionFactor: quality]
-        )
-
-        #else
-
-        guard let image = UIImage(data: data) else { return nil }
-
-        let largest = max(image.size.width, image.size.height)
-        guard largest > 0 else { return nil }
-
-        let scale = min(1, maxDimension / largest)
-        let size = CGSize(
-            width: image.size.width * scale,
-            height: image.size.height * scale
-        )
-
-        let resized = UIGraphicsImageRenderer(size: size).image { _ in
-            image.draw(in: CGRect(origin: .zero, size: size))
-        }
-
-        return resized.jpegData(compressionQuality: quality)
-
-        #endif
     }
 }
 
@@ -203,6 +86,7 @@ extension FlashcardContentType {
         case .richText: return String(localized: "shared.contentType.text")
         case .image: return String(localized: "shared.contentType.image")
         case .drawing: return String(localized: "shared.contentType.drawing")
+        case .pdf: return String(localized: "shared.contentType.pdf")
         }
     }
 
@@ -211,6 +95,7 @@ extension FlashcardContentType {
         case .richText: return "text.alignleft"
         case .image: return "photo"
         case .drawing: return "pencil.tip"
+        case .pdf: return "doc.richtext"
         }
     }
 }
@@ -219,8 +104,6 @@ struct FlashcardSideContentView: View {
 
     let side: FlashcardSide?
     var textFont: Font = .title2
-
-    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         if let side {
@@ -245,20 +128,89 @@ struct FlashcardSideContentView: View {
             }
 
         case .image:
-            if let data = side.imageData, let image = image(from: data) {
+            SideImageView(side: side)
+
+        case .drawing:
+            SideDrawingView(side: side)
+
+        case .pdf:
+            PDFSideView(fileName: side.mediaFileName)
+                .clipShape(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
+        }
+    }
+
+    private var placeholder: some View {
+        SidePlaceholder()
+    }
+}
+
+// MARK: - Media rendering
+
+private struct SidePlaceholder: View {
+
+    var body: some View {
+        Label("shared.content.empty", systemImage: "square.dashed")
+            .font(.title3)
+            .foregroundStyle(.tertiary)
+    }
+}
+
+/// Loads image bytes from iCloud Drive (or legacy inline data) and shows a
+/// progress indicator while a not-yet-downloaded file arrives.
+private struct SideImageView: View {
+
+    let side: FlashcardSide
+
+    @State private var image: Image?
+    @State private var isLoading = true
+
+    var body: some View {
+        Group {
+            if let image {
                 image
                     .resizable()
                     .scaledToFit()
                     .clipShape(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                     )
+            } else if isLoading {
+                ProgressView()
+                    .controlSize(.small)
             } else {
-                placeholder
+                SidePlaceholder()
             }
+        }
+        .task(id: side.modifiedAt) {
+            await load()
+        }
+    }
 
-        case .drawing:
-            if let drawing = side.pencilKitDrawing,
-               let image = renderedImage(for: drawing) {
+    private func load() async {
+        if let data = await side.loadImageData(),
+           let loaded = platformImage(from: data) {
+            image = loaded
+        }
+
+        isLoading = false
+    }
+}
+
+/// Loads a PencilKit drawing and renders it in light mode so the ink matches
+/// the white canvas on every device.
+private struct SideDrawingView: View {
+
+    let side: FlashcardSide
+
+    @Environment(\.displayScale) private var displayScale
+
+    @State private var image: Image?
+    @State private var isLoading = true
+
+    var body: some View {
+        Group {
+            if let image {
                 image
                     .resizable()
                     .scaledToFit()
@@ -269,58 +221,71 @@ struct FlashcardSideContentView: View {
                             style: .continuous
                         )
                     )
+            } else if isLoading {
+                ProgressView()
+                    .controlSize(.small)
             } else {
-                placeholder
+                SidePlaceholder()
             }
         }
+        .task(id: side.modifiedAt) {
+            await load()
+        }
     }
 
-    private var placeholder: some View {
-        Label("shared.content.empty", systemImage: "square.dashed")
-            .font(.title3)
-            .foregroundStyle(.tertiary)
-    }
-
-    /// Creates a SwiftUI image using the native image type of each platform.
-    private func image(from data: Data) -> Image? {
-        #if os(macOS)
-
-        guard let nsImage = NSImage(data: data) else { return nil }
-        return Image(nsImage: nsImage)
-
-        #else
-
-        guard let uiImage = UIImage(data: data) else { return nil }
-        return Image(uiImage: uiImage)
-
-        #endif
-    }
-
-    /// Renders a PencilKit drawing to a SwiftUI image.
-    private func renderedImage(for drawing: PKDrawing) -> Image? {
-        guard !drawing.bounds.isEmpty else { return nil }
-
-        let rect = drawing.bounds.insetBy(dx: -16, dy: -16)
-
-        #if os(macOS)
-
-        let result = drawing.image(from: rect, scale: displayScale)
-        return Image(nsImage: result)
-
-        #else
-
-        var result: UIImage?
-
-        // Render in light mode so ink colors match the white canvas.
-        UITraitCollection(userInterfaceStyle: .light).performAsCurrent {
-            result = drawing.image(from: rect, scale: displayScale)
+    private func load() async {
+        guard
+            let data = await side.loadDrawingData(),
+            let drawing = try? PKDrawing(data: data)
+        else {
+            isLoading = false
+            return
         }
 
-        guard let result else { return nil }
-        return Image(uiImage: result)
-
-        #endif
+        image = renderedDrawing(drawing, scale: displayScale)
+        isLoading = false
     }
+}
+
+/// Creates a SwiftUI image using the native image type of each platform.
+private func platformImage(from data: Data) -> Image? {
+    #if os(macOS)
+
+    guard let nsImage = NSImage(data: data) else { return nil }
+    return Image(nsImage: nsImage)
+
+    #else
+
+    guard let uiImage = UIImage(data: data) else { return nil }
+    return Image(uiImage: uiImage)
+
+    #endif
+}
+
+/// Renders a PencilKit drawing to a SwiftUI image.
+private func renderedDrawing(_ drawing: PKDrawing, scale: CGFloat) -> Image? {
+    guard !drawing.bounds.isEmpty else { return nil }
+
+    let rect = drawing.bounds.insetBy(dx: -16, dy: -16)
+
+    #if os(macOS)
+
+    let result = drawing.image(from: rect, scale: scale)
+    return Image(nsImage: result)
+
+    #else
+
+    var result: UIImage?
+
+    // Render in light mode so ink colors match the white canvas.
+    UITraitCollection(userInterfaceStyle: .light).performAsCurrent {
+        result = drawing.image(from: rect, scale: scale)
+    }
+
+    guard let result else { return nil }
+    return Image(uiImage: result)
+
+    #endif
 }
 
 // MARK: - Drawing canvas (iOS and other UIKit platforms)

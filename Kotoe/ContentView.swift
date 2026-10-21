@@ -468,6 +468,7 @@ struct ContentView: View {
 
     private func delete(_ subject: Subject) {
         withAnimation(.snappy(duration: 0.35)) {
+            subject.removeMediaFiles()
             modelContext.delete(subject)
         }
 
