@@ -193,6 +193,15 @@ OpenCode sessions may run in a git worktree under
 main checkout but usually has a detached HEAD. When the work is finished,
 transfer it to the main checkout instead of leaving it in the worktree.
 
+**Agents never commit, merge, or close a worktree on their own.** Do not run
+`git commit`, `git merge`, `git cherry-pick`, `git tag`, or
+`git worktree remove` without an explicit go-ahead from the user; the user
+may want to review, amend, or reword the work first. When the task is
+finished, stop and ask if you should commit.
+
+Run the steps below only after the user agrees. If the user answers with
+their own wording, treat it as the approval for the whole sequence.
+
 1. From the worktree, commit everything and note the SHA(s):
 
 ```sh
@@ -243,7 +252,8 @@ the worktree commits should keep their branch history in the main checkout.
   model changes. Docs, copy changes, and small fixes do not need a bump.
 - Tag only commits that are in the main checkout, after transferring the work
   from a worktree; tags created in a worktree are easy to lose. Never move or
-  reuse an existing tag — bump the version again instead.
+  reuse an existing tag — bump the version again instead. Tags are part of the
+  same approval rule: ask before creating one.
 - Check the current values with
   `grep -n "MARKETING_VERSION\|CURRENT_PROJECT_VERSION" "Kōtoe.xcodeproj/project.pbxproj"`
   and list existing tags with `git tag -l`.
