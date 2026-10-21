@@ -113,11 +113,11 @@ CloudKit's 1 MB record limit. No sign-up, no server of its own, no tracking.
 
 | | |
 |:--|:--|
-| 🧑‍💻 **Lines of Swift** | **5,903** (4,664 without blanks and comments) |
-| 📄 **Swift files** | **20** |
+| 🧑‍💻 **Lines of Swift** | **5,705** (4,511 without blanks and comments) |
+| 📄 **Swift files** | **19** |
 | 🗂️ **SwiftData models** | **4** |
-| 🖼️ **View files** | **12** |
-| 🌍 **Localized strings** | **142** keys × **5** languages |
+| 🖼️ **View files** | **11** |
+| 🌍 **Localized strings** | **132** keys × **5** languages |
 | 🃏 **Content types per card side** | **4** (text, photo, drawing, PDF) |
 | 🎨 **Palette colors** | **9** |
 | 🔗 **Third-party dependencies** | **0** |
