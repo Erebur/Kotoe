@@ -72,11 +72,48 @@ extension FlashcardSide {
         }
     }
 
-    /// Downscales and compresses a picked photo so the store stays small.
+    /// CloudKit limits a record to 1 MB, and SwiftData stores each side's
+    /// payload inline in its record, so photos are recompressed until they fit
+    /// under `byteLimit` instead of stalling the export queue.
     static func compressedImageData(
         from data: Data,
-        maxDimension: CGFloat = 1600
+        maxDimension: CGFloat = 1600,
+        byteLimit: Int = 700_000
     ) -> Data {
+        var dimension = maxDimension
+        var quality: CGFloat = 0.85
+        let floorDimension = min(700, maxDimension)
+
+        while true {
+            guard
+                let encoded = jpegData(
+                    from: data,
+                    maxDimension: dimension,
+                    quality: quality
+                )
+            else {
+                // The image could not be decoded; keep the original bytes.
+                return data
+            }
+
+            let isAtFloor = dimension <= floorDimension && quality <= 0.45
+            if encoded.count <= byteLimit || isAtFloor {
+                return encoded
+            }
+
+            if quality > 0.5 {
+                quality = max(0.45, quality - 0.15)
+            } else {
+                dimension = max(floorDimension, dimension * 0.7)
+            }
+        }
+    }
+
+    private static func jpegData(
+        from data: Data,
+        maxDimension: CGFloat,
+        quality: CGFloat
+    ) -> Data? {
         #if os(macOS)
 
         guard
@@ -87,7 +124,7 @@ extension FlashcardSide {
                 hints: nil
             )
         else {
-            return data
+            return nil
         }
 
         let originalSize = CGSize(
@@ -96,7 +133,7 @@ extension FlashcardSide {
         )
 
         let largest = max(originalSize.width, originalSize.height)
-        guard largest > 0 else { return data }
+        guard largest > 0 else { return nil }
 
         let scale = min(1, maxDimension / largest)
         let size = CGSize(
@@ -119,7 +156,7 @@ extension FlashcardSide {
             ),
             let graphics = NSGraphicsContext(bitmapImageRep: bitmap)
         else {
-            return data
+            return nil
         }
 
         NSGraphicsContext.saveGraphicsState()
@@ -131,15 +168,15 @@ extension FlashcardSide {
 
         return bitmap.representation(
             using: .jpeg,
-            properties: [.compressionFactor: 0.85]
-        ) ?? data
+            properties: [.compressionFactor: quality]
+        )
 
         #else
 
-        guard let image = UIImage(data: data) else { return data }
+        guard let image = UIImage(data: data) else { return nil }
 
         let largest = max(image.size.width, image.size.height)
-        guard largest > 0 else { return data }
+        guard largest > 0 else { return nil }
 
         let scale = min(1, maxDimension / largest)
         let size = CGSize(
@@ -151,7 +188,7 @@ extension FlashcardSide {
             image.draw(in: CGRect(origin: .zero, size: size))
         }
 
-        return resized.jpegData(compressionQuality: 0.85) ?? data
+        return resized.jpegData(compressionQuality: quality)
 
         #endif
     }

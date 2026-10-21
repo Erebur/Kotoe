@@ -33,7 +33,9 @@ repetition scheduling, archiving, import/export, search, and tests do not.
 
 The Xcode project uses a **file-system-synchronized group**, so any `.swift`
 file added anywhere under `Kotoe/` is compiled automatically. Do **not**
-hand-edit `Kōtoe.xcodeproj/project.pbxproj` to add files.
+hand-edit `Kōtoe.xcodeproj/project.pbxproj` to add files. The one exception is
+`Localizable.xcstrings`, which sits at the project root (outside the
+synchronized group) and is added to the target explicitly.
 
 The project/scheme name contains a macron (`Kōtoe`). Always quote it in shell
 commands.
@@ -220,10 +222,12 @@ the worktree commits should keep their branch history in the main checkout.
 ## Repository layout
 
 ```
+Localizable.xcstrings            UI copy for en, de, es, fr, ja
 Kotoe/
   FlashApp.swift                 @main app, SwiftData ModelContainer
   ContentView.swift              Subject list (root screen)
-  Localizable.xcstrings          UI copy for en, de, es, fr, ja
+  Sync/
+    CloudKitSyncMonitor.swift    CloudKit event observer + sync status
   Models/
     Subject.swift                top level: subject
     FlashcardSet.swift           flashcards belonging to a subject
@@ -259,7 +263,8 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
   constraints.
 - A side's payload is a `Data` blob chosen by `contentType`:
   - `.richText` → `richTextData` (RTF; currently edited as plain text)
-  - `.image` → `imageData` (JPEG, downscaled to 1600 px, quality 0.85)
+  - `.image` → `imageData` (JPEG, downscaled to 1600 px and recompressed until
+    it fits under 700 KB, so the CloudKit record stays below its 1 MB limit)
   - `.drawing` → `drawingData` (`PKDrawing.dataRepresentation()`)
   Only one payload is populated at a time; use the `updateRichText`,
   `updateImage`, `updateDrawing`, and `clearContent` helpers.
@@ -277,12 +282,47 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
 - Side order in `Flashcard.sides` is not meaningful — always use `front` /
   `back` or `setFront` / `setBack`.
 
+## iCloud sync
+
+SwiftData mirrors the store through CloudKit automatically
+(`cloudKitDatabase: .automatic`, container `iCloud.com.erebur.kotoe`, declared
+in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
+
+- The mirror imports on launch and when CloudKit delivers a silent push. Silent
+  pushes are best effort: they are skipped in Low Power Mode, never reach a
+  force-quit app, and the macOS app only syncs while it is running. Closing the
+  window does not quit it, so a long-idle app can show stale data until it is
+  relaunched.
+- `CloudKitSyncMonitor` observes
+  `NSPersistentCloudKitContainer.eventChangedNotification`, logs failed
+  setup/import/export operations with `print`, and drives the "Synced …" /
+  "iCloud sync failed" line in the library footer. SwiftData posts these
+  notifications even though it never exposes its container.
+- Imports run through `NSPersistentStoreRemoteChange` and normally refresh
+  `@Query` results without extra work. When data looks missing, relaunch before
+  assuming it never synced — TN3164 lists this first.
+- A CloudKit record is limited to 1 MB, and SwiftData keeps each side's payload
+  inline. `FlashcardSide.compressedImageData(from:)` recompresses photos until
+  they fit under 700 KB; drawings only log a warning as they approach the limit.
+  Any new inline `Data` attribute needs the same guard.
+- Cascade deletes are applied by the deleting device and then exported. A child
+  whose parent ends up `nil` is invisible: the library only counts reachable
+  sets and cards, so it looks like data loss. Such orphans were found in the
+  store and repaired by hand; there is still no automatic repair pass or UI.
+- Do not repair data by opening the store from a separate tool. The mirror does
+  not see those writes as changes, and the next import overwrites them. Run
+  repairs through the app's own `ModelContainer` (for example a temporary
+  `.task`), let the export finish, then remove the code.
+- CloudKit's development schema is separate from production. TestFlight and App
+  Store builds only see the production environment.
+
 ## Localization
 
-- All UI copy lives in `Kotoe/Localizable.xcstrings`. The project sets
-  `LOCALIZATION_PREFERS_STRING_CATALOGS = YES`; the catalog's source language is
-  English and it ships German, Spanish, French, and Japanese. Add every new key
-  to all five languages, otherwise the string falls back to English.
+- All UI copy lives in `Localizable.xcstrings` at the project root. The
+  project sets `LOCALIZATION_PREFERS_STRING_CATALOGS = YES`; the catalog's
+  source language is English and it ships German, Spanish, French, and
+  Japanese. Add every new key to all five languages, otherwise the string
+  falls back to English.
 - **Keys use `{view}.{section}.{enShorthand}`**, e.g.
   `contentView.emptyState.title`, `studyView.progress.cardsLeft`,
   `appearanceEditor.footer.reset`. The first segment is the screen or shared
@@ -391,8 +431,11 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
   `SubjectView.swift`.
 - Change icon/color choices or the appearance UI: `Theme.swift`
   (`subjectSymbols`, `setSymbols`, `palette`) and `AppearanceEditor.swift`.
-- Change UI copy or add a language: `Kotoe/Localizable.xcstrings`, plus
+- Change UI copy or add a language: `Localizable.xcstrings`, plus
   `LocalizedCounts.swift` for plural counts; see **Localization**.
+- Change sync status, logging, or CloudKit diagnostics:
+  `Sync/CloudKitSyncMonitor.swift` and the footer in `ContentView.swift`; see
+  **iCloud sync**.
 
 ## Known gaps (safe next steps)
 
@@ -404,10 +447,14 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
 - Non-English UI strings are machine translated and have not been reviewed by
   native speakers; the in-app disclaimer is the only acknowledgement of this.
 - Rich text is stored as RTF but edited and rendered as plain text.
-- No error UI when the model container or CloudKit sync fails
-  (`fatalError` on container creation, `print` on save).
-- The push-notification entitlement and background mode exist but nothing uses
-  them. No tests.
+- CloudKit sync failures are only logged and summarised in the library footer;
+  there is no retry button, no `CKContainer.accountStatus` check, and the model
+  container still calls `fatalError` when it cannot be created.
+- Orphaned sets/cards (a `nil` parent left behind by a cascade delete on another
+  device) have no UI and no repair pass, so they are invisible but still stored.
+- The push-notification entitlement and background mode are only there for
+  SwiftData's CloudKit mirror; the app has no notification code of its own. No
+  tests.
 
 ## Maintaining this file
 

@@ -13,6 +13,8 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.locale) private var locale
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(CloudKitSyncMonitor.self) private var syncMonitor
 
     @Query(
         filter: #Predicate<Subject> { !$0.isArchived },
@@ -50,6 +52,7 @@ struct ContentView: View {
                             .transition(.opacity)
                         }
 
+                        syncStatus
                         disclaimer
                     }
                     .padding(.horizontal, 22)
@@ -117,6 +120,18 @@ struct ContentView: View {
                 )
             }
             .animation(.snappy(duration: 0.35), value: subjects.count)
+            .onChange(of: scenePhase) { _, newPhase in
+                // Autosave normally handles this, but flushing explicitly
+                // makes sure edits reach the store before the process can be
+                // suspended or terminated.
+                guard newPhase != .active else { return }
+
+                do {
+                    try modelContext.save()
+                } catch {
+                    print("Failed to save before leaving: \(error)")
+                }
+            }
         }
     }
 
@@ -156,6 +171,80 @@ struct ContentView: View {
     }
 
     // MARK: - Footer
+
+    /// CloudKit retries silently, so without this line a failed import is
+    /// indistinguishable from an empty library.
+    @ViewBuilder
+    private var syncStatus: some View {
+        switch syncMonitor.state {
+        case .idle:
+            EmptyView()
+
+        case .syncing:
+            syncLabel(
+                String(localized: "contentView.footer.sync.syncing"),
+                symbol: "arrow.triangle.2.circlepath",
+                tint: .secondary
+            )
+
+        case .synced(let date):
+            syncLabel(
+                syncedText(for: date),
+                symbol: "checkmark.icloud",
+                tint: .secondary
+            )
+
+        case .failed:
+            syncLabel(
+                String(localized: "contentView.footer.sync.failed"),
+                symbol: "exclamationmark.icloud",
+                tint: KotoeTheme.accent
+            )
+            .help(
+                syncMonitor.lastErrorDescription
+                    ?? String(localized: "contentView.footer.sync.failed")
+            )
+        }
+    }
+
+    private func syncedText(for date: Date) -> String {
+        if Date.now.timeIntervalSince(date) < 60 {
+            return String(localized: "contentView.footer.sync.justNow")
+        }
+
+        let relative = Self.relativeDateFormatter.localizedString(
+            for: date,
+            relativeTo: .now
+        )
+
+        return String(
+            localized: "contentView.footer.sync.synced",
+            defaultValue: "Synced \(relative)"
+        )
+    }
+
+    private func syncLabel(
+        _ text: String,
+        symbol: String,
+        tint: Color
+    ) -> some View {
+        Label {
+            Text(verbatim: text)
+        } icon: {
+            Image(systemName: symbol)
+        }
+        .font(.caption2)
+        .foregroundStyle(tint)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.top, 6)
+        .accessibilityElement(children: .combine)
+    }
+
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter
+    }()
 
     @ViewBuilder
     private var disclaimer: some View {
@@ -407,4 +496,5 @@ struct ContentView: View {
             ],
             inMemory: true
         )
+        .environment(CloudKitSyncMonitor())
 }

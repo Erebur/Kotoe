@@ -123,6 +123,15 @@ extension FlashcardSide {
 
     /// Stores a PencilKit drawing and updates modification dates.
     func updateDrawing(_ drawing: PKDrawing) {
-        updateDrawing(drawing.dataRepresentation())
+        let data = drawing.dataRepresentation()
+
+        if data.count > 700_000 {
+            print(
+                "[CloudKit] Drawing is \(data.count) bytes; "
+                    + "CloudKit records are limited to 1 MB."
+            )
+        }
+
+        updateDrawing(data)
     }
 }

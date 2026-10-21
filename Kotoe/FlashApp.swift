@@ -11,6 +11,10 @@ import SwiftUI
 @main
 struct FlashApp: App {
 
+    /// Observes CloudKit's import and export events so the library screen can
+    /// show whether the last sync succeeded.
+    @State private var syncMonitor = CloudKitSyncMonitor()
+
     private static let modelContainer: ModelContainer = {
         let schema = Schema([
             Subject.self,
@@ -39,6 +43,7 @@ struct FlashApp: App {
         WindowGroup {
             ContentView()
                 .tint(KotoeTheme.accent)
+                .environment(syncMonitor)
         }
         .modelContainer(Self.modelContainer)
         #if os(macOS)
