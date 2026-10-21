@@ -72,6 +72,7 @@ struct ContentView: View {
                     } label: {
                         Label("contentView.toolbar.newSubject", systemImage: "plus")
                     }
+                    .tint(.primary)
                     .keyboardShortcut("n", modifiers: .command)
                     .help("contentView.toolbar.createSubjectHelp")
                 }

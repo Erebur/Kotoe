@@ -382,6 +382,9 @@ in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
   `model.style` and tint card/background surfaces with `style.tint`
   (`cardSurface(tint:)`, `AmbientBackground(tint:)`) instead of hardcoding
   `KotoeTheme.accent`.
+- The toolbar add buttons (home view and subject view) stay black/white with
+  `.tint(.primary)` on the `Button`. A toolbar button ignores
+  `.foregroundStyle` on the label on iOS, so tint the button, not the label.
 - Keep platform-specific code behind `#if os(macOS)` / `#else`. Examples:
   `inlineNavigationBarTitle()` (no inline titles on macOS),
   `editorCover(...)` (`fullScreenCover` is iOS-only), and `NSImage` vs `UIImage`.

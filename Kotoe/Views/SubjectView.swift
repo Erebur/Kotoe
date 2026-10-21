@@ -60,6 +60,7 @@ struct SubjectView: View {
                 } label: {
                     Label("subjectView.toolbar.addSet", systemImage: "plus")
                 }
+                .tint(.primary)
                 .keyboardShortcut("n", modifiers: .command)
                 .help("subjectView.toolbar.createSetHelp")
             }
