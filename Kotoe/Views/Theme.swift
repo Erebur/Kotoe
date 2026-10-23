@@ -33,6 +33,9 @@ enum KotoeTheme {
     /// Green used for a correct answer.
     static let success = Color(red: 0.235, green: 0.522, blue: 0.404)
 
+    /// Red used for an incorrect answer.
+    static let failure = Color(red: 0.970, green: 0.460, blue: 0.390)
+
     /// Accent palette used to give subjects a stable, recognizable color.
     static let palette: [Color] = [
         Color(red: 0.851, green: 0.408, blue: 0.290),  // terracotta
@@ -381,6 +384,10 @@ struct CardSurface: ViewModifier {
     var cornerRadius: CGFloat = 16
     var tint: Color? = nil
 
+    /// Screens that want a completely borderless surface (the study card and
+    /// its progress row) turn the hairline off.
+    var showsBorder: Bool = true
+
     private var tintOverlay: LinearGradient {
         LinearGradient(
             colors: [
@@ -411,13 +418,18 @@ struct CardSurface: ViewModifier {
                         y: 5
                     )
             }
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .overlay {
+                if showsBorder {
+                    RoundedRectangle(
+                        cornerRadius: cornerRadius,
+                        style: .continuous
+                    )
                     .strokeBorder(
                         tint?.opacity(0.16) ?? KotoeTheme.hairline,
                         lineWidth: 1
                     )
-            )
+                }
+            }
     }
 }
 
@@ -425,13 +437,15 @@ extension View {
     func cardSurface(
         padding: CGFloat = 16,
         cornerRadius: CGFloat = 16,
-        tint: Color? = nil
+        tint: Color? = nil,
+        showsBorder: Bool = true
     ) -> some View {
         modifier(
             CardSurface(
                 padding: padding,
                 cornerRadius: cornerRadius,
-                tint: tint
+                tint: tint,
+                showsBorder: showsBorder
             )
         )
     }
@@ -504,4 +518,48 @@ extension View {
     func hoverLift() -> some View {
         modifier(HoverLift())
     }
+}
+
+// MARK: - Previews
+
+#Preview("Ambient Background") {
+    AmbientBackground(tint: KotoeTheme.palette[2])
+}
+
+#Preview("Icon Tile") {
+    HStack(spacing: 14) {
+        IconTile(symbol: "book.closed.fill", tint: KotoeTheme.palette[2])
+        IconTile(symbol: "atom", tint: KotoeTheme.palette[0], size: 64)
+    }
+    .padding(26)
+}
+
+#Preview("Section Header") {
+    VStack(alignment: .leading, spacing: 12) {
+        SectionHeader(
+            title: "shared.section.notes",
+            systemImage: "note.text"
+        )
+
+        SectionHeader(
+            title: "shared.section.cards",
+            systemImage: "rectangle.on.rectangle.angled"
+        )
+    }
+    .padding(24)
+}
+
+#Preview("Stat Label") {
+    HStack(spacing: 16) {
+        StatLabel(
+            text: LocalizedCounts.sets(2),
+            systemImage: "square.stack.3d.up.fill"
+        )
+
+        StatLabel(
+            text: LocalizedCounts.cards(12),
+            systemImage: "rectangle.on.rectangle.angled"
+        )
+    }
+    .padding(24)
 }

@@ -7,11 +7,14 @@
 ## What this app is
 
 **Kōtoe** (product name; source folder is `Kotoe/`) is a native Apple flashcard
-study app. Users organize cards into subjects and sets, then review them in a
-tap-to-flip study session, marking each card **Got It** or **Again** (missed
-cards cycle back to the end of the queue). Cards can have text, photo,
-hand-drawn, or PDF content on each side. Data is stored locally with
-SwiftData and synced through the user's iCloud/CloudKit account.
+study app. Users organize cards into subjects and sets, then study them in a
+session that starts with a choice of guessing or typing the answer and whether
+to shuffle. A tap reveals the answer; in guessing mode a swipe right marks the
+card **Got It** and a swipe left marks it **Again** (missed cards cycle back to
+the end of the queue). Every mark is stored on the card and appended to its
+review history. Cards can have text, photo, hand-drawn, or PDF content on each
+side. Data is stored locally with SwiftData and synced through the user's
+iCloud/CloudKit account.
 
 It is an early-stage app: the UI and data model for the core loop exist; spaced
 repetition scheduling, archiving, export, search, and tests do not.
@@ -287,8 +290,9 @@ Kotoe/
   Models/
     Subject.swift                top level: subject
     FlashcardSet.swift           flashcards belonging to a subject
-    Flashcard.swift              one card; front/back accessors
+    Flashcard.swift              one card; front/back accessors, study state
     FlashcardSide.swift          content payload + PencilKit helpers
+    FlashcardReview.swift        one recorded study mark (history)
   Views/
     FlashcardSetEditView.swift   set editor, card editor, side editor
     CardImportView.swift         bulk import sheet: paste text, preview, import
@@ -299,12 +303,21 @@ Kotoe/
       PlatformModifiers.swift    cross-platform view modifiers
       AppearanceEditor.swift     icon + color picker for subjects and sets
       CreateItemSheet.swift      shared "create subject / create set" prompt
+      PreviewData.swift          in-memory sample models for Xcode previews
       PDFViewer.swift            PDFKit wrapper + full document viewer
       If.swift                   shared `if` view modifier
       Clipboard.swift            pasteboard access for the card import
     Structure/
       SubjectView.swift          subject detail, sets, notes, "Study All"
-      StudyView.swift            study session + FlipCard
+      StudyView.swift            study session container + logic
+      Study/
+        StudyStartScreen.swift   session start screen (mode, shuffle, capitalisation)
+        StudyEmptyState.swift    shown when the set has no cards
+        StudyFinishedView.swift  shown when the queue drains
+        StudyProgressCard.swift  learned / incorrect progress ring
+        StudyCardView.swift      front / back card with swipe animations
+        StudyControls.swift      hints / Again-GotIt / typing answer field
+        StudyActionButtonStyle.swift styled study action buttons
 ```
 
 ## Data model
@@ -312,7 +325,8 @@ Kotoe/
 Hierarchy, all cascade-deleted from the parent:
 
 ```
-Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: front | back)
+Subject ──< FlashcardSet ──< Flashcard ─┬─< FlashcardSide (role: front | back)
+                                        └─< FlashcardReview
 ```
 
 - Every `@Model` stored property has a **default value**, and relationships are
@@ -333,11 +347,19 @@ Subject ──< FlashcardSet ──< Flashcard ──< FlashcardSide (role: fron
 - `isArchived` and `position` exist on all levels. `sortedFlashcardSets` and
   `sortedFlashcards` filter archived items and sort by `position`. There is no
   archive UI yet, but queries and computed properties already respect the flag.
+- Study marks persist on the card: `isKnown` is the latest knowledge state and
+  `lastReviewedAt` the time of the last mark. `FlashcardReview` stores one row
+  per mark (`correct`, `reviewedAt`) and hangs off `Flashcard.reviews` with a
+  cascade delete rule, so the history travels and disappears with the card.
+  Nothing schedules reviews from that history yet.
 - `Subject` and `FlashcardSet` store `iconName` (SF Symbol) and `tintIndex`
   (index into `KotoeTheme.palette`), both optional. `nil` means "automatic":
   subjects derive an icon/color from the name, sets use the stack symbol and
   inherit the subject's color. Use the `style` computed property to render them
   and `effectiveTintIndex` to preselect the appearance editor.
+- `FlashcardSet` stores `checksCapitalization` (default `false`): when typing
+  answers in a study session, whether upper- and lowercase letters must match
+  exactly. It is exposed as a set-wide option on the study start screen.
 - `createdAt` / `modifiedAt` / `lastAccessedAt` are plain properties updated
   **manually** in the views. There are no automatic hooks; update the parent's
   `modifiedAt` when mutating children.
@@ -376,6 +398,41 @@ card row opens the editor for an existing one.
 - Reading the pasteboard on iOS shows the system paste prompt, so only read
   it from a user action. `Clipboard.hasText` is safe to read while drawing;
   `Clipboard.text` is not.
+
+## Study sessions
+
+`StudyView` opens from a set row or "Study All" in `SubjectView`.
+
+- A start screen asks for the **mode** (Guess or Type) and whether to
+  **shuffle** before the first card. In Type mode there is also a set-wide
+  **Check capitalisation** toggle, stored on the set via
+  `FlashcardSet.checksCapitalization`. `showsStart` gates it; the session only
+  begins through `beginSession()`.
+- The toolbar menu offers New Session (back to the start screen), Restart,
+  and Restart Shuffled. Restart keeps the mode that started the session.
+- Guess mode shows the front. A tap (or Space) reveals the back. Swiping
+  right marks the card **Got It**, swiping left marks it **Again**; the
+  drag is horizontal with a ~40 pt threshold and the card flies off in the
+  swipe direction with a matching green/red tint animation.
+- The **"Reveal answer" button is gone**. Instead, hints ("Tap to reveal",
+  "Swipe right: correct", "Swipe left: incorrect") guide the user before the
+  card is flipped.
+- Type mode shows the front with an answer field. Submit (or Return)
+  automatically judges the answer against the back (respecting the
+  capitalisation setting) with a small correct/incorrect animation, then
+  advances to the next card.
+- **Again**/**Got It** buttons (keys 1 and 2) stay available whenever the
+  answer is revealed in Guess mode; they are the reliable marking path on
+  macOS, where swiping with a mouse is awkward. "Again" re-queues the card at
+  the end, "Got It" counts it as learned, and the session ends when the queue
+  drains.
+- Every mark updates `isKnown` / `lastReviewedAt`, appends a
+  `FlashcardReview`, and saves the context so the state survives relaunch
+  and syncs through iCloud.
+- The study card has a gradient background echoing the app's brand gradient.
+- The progress row drops its card container: it uses a smaller ring whose
+  green segment shows learned cards and whose red segment shows incorrect
+  cards, followed by the "known of total" and "cards left" labels.
 
 ## iCloud sync
 
@@ -508,8 +565,10 @@ text — do not paste it into Swift code or the string catalog.
   `editorCover(...)` (`fullScreenCover` is iOS-only), and `NSImage` vs `UIImage`.
 - Avoid force unwraps, except existing UI defaults; handle failures with `guard`
   or `try?`, and log persistence failures with `print`.
-- Previews pass an in-memory container listing **all four models**; keep that
-  pattern for new previews.
+- Every view has a `#Preview`. Model-bound previews take their store and
+  sample data from `Views/Helper/PreviewData.swift`
+  (`PreviewData.scene()`, `PreviewData.container()`, `PreviewData.card(...)`)
+  instead of the real library; add a preview when you add a view.
 
 ## Cross-platform gotchas
 
@@ -550,8 +609,9 @@ text — do not paste it into Swift code or the string catalog.
 
 - Add a screen field: extend the model, then the relevant form in
   `Views/Structure/SubjectView.swift` / `Views/FlashcardSetEditView.swift`.
-- Change study behavior (queue, scoring, shuffling):
-  `Views/Structure/StudyView.swift`.
+- Change study behavior (start screen, guess/type modes, swipe marking,
+  queue, scoring, shuffling, review recording):
+  `Views/Structure/StudyView.swift` and `Models/FlashcardReview.swift`.
 - Change card rendering or add a content type: `FlashcardSideContentView.swift`
   plus the `FlashcardContentType` enum and the side editor's picker.
 - Change how bulk imports are parsed (separator, escaping):
@@ -583,7 +643,8 @@ text — do not paste it into Swift code or the string catalog.
 ## Known gaps (safe next steps)
 
 - No spaced-repetition scheduling: sessions are a simple re-queue, with no
-  review intervals, due dates, or per-card history.
+  review intervals or due dates. Marks are stored (`isKnown`,
+  `lastReviewedAt`, `FlashcardReview`) but nothing reads the history back.
 - No archive UI despite `isArchived` plumbing; no reordering of subjects/sets
   (only cards can be moved).
 - Bulk import only takes text: pasted or a text file. There is no export, no

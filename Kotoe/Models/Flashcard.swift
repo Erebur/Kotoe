@@ -42,6 +42,15 @@ final class Flashcard {
     var position: Int = 0
     var isArchived: Bool = false
 
+    // MARK: Study State
+
+    /// The current knowledge state: whether the card was marked as known the
+    /// last time it was studied. Updated on every study mark.
+    var isKnown: Bool = false
+
+    /// When the card was last marked in a study session, if it ever was.
+    var lastReviewedAt: Date? = nil
+
     // MARK: Relationships
 
     var flashcardSet: FlashcardSet?
@@ -51,6 +60,12 @@ final class Flashcard {
         inverse: \FlashcardSide.flashcard
     )
     var sides: [FlashcardSide]?
+
+    @Relationship(
+        deleteRule: .cascade,
+        inverse: \FlashcardReview.card
+    )
+    var reviews: [FlashcardReview]?
 
     // MARK: Initialization
 

@@ -815,14 +815,7 @@ struct FlashcardEditorView: View {
     // MARK: - Footer
 
     private var footer: some View {
-        HStack(spacing: 12) {
-            Button {
-                save()
-            } label: {
-                Label("cardEditor.actions.save", systemImage: "checkmark")
-            }
-            .buttonStyle(.bordered)
-
+        HStack() {
             Spacer()
 
             Button {
@@ -835,7 +828,7 @@ struct FlashcardEditorView: View {
             .disabled(onNextCard == nil)
         }
         .padding(.horizontal, 22)
-        .padding(.vertical, 14)
+        .padding(.vertical, 18)
     }
 
     #if os(macOS)
@@ -1419,4 +1412,61 @@ private struct FileImportError: Identifiable {
             )
         }
     }
+}
+
+// MARK: - Previews
+
+#Preview("Set Editor") {
+    let scene = PreviewData.scene()
+
+    return FlashcardSetEditView(flashcardSet: scene.set)
+        .modelContainer(scene.container)
+}
+
+#Preview("Card Rows") {
+    let scene = PreviewData.scene()
+    let tint = KotoeTheme.palette[2]
+
+    return List {
+        CardRow(card: scene.card, index: 1)
+
+        ReorderableCardRow(
+            card: scene.card,
+            index: 2,
+            tint: tint,
+            onMoveUp: {},
+            onMoveDown: {},
+            onDelete: {},
+            onDrop: { _ in }
+        )
+    }
+    .modelContainer(scene.container)
+}
+
+#Preview("Card Editor") {
+    let scene = PreviewData.scene()
+
+    return NavigationStack {
+        FlashcardEditorView(card: scene.card)
+    }
+    .modelContainer(scene.container)
+}
+
+#Preview("Side Editor") {
+    let scene = PreviewData.scene()
+    let tint = KotoeTheme.palette[2]
+
+    return ScrollView {
+        SideEditorSection(
+            title: "cardEditor.front.title",
+            subtitle: "cardEditor.front.subtitle",
+            placeholder: "cardEditor.front.textPlaceholder",
+            systemImage: "questionmark.circle.fill",
+            tint: tint,
+            accent: tint,
+            side: scene.frontSide
+        )
+        .padding(22)
+    }
+    .modelContainer(scene.container)
 }

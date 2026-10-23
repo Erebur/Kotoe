@@ -492,6 +492,7 @@ struct ContentView: View {
                 FlashcardSet.self,
                 Flashcard.self,
                 FlashcardSide.self,
+                FlashcardReview.self,
             ],
             inMemory: true
         )

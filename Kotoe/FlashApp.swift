@@ -21,6 +21,7 @@ struct FlashApp: App {
             FlashcardSet.self,
             Flashcard.self,
             FlashcardSide.self,
+            FlashcardReview.self,
         ])
 
         let configuration = ModelConfiguration(

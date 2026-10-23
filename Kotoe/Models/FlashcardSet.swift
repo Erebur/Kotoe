@@ -23,6 +23,10 @@ final class FlashcardSet {
     var position: Int = 0
     var isArchived: Bool = false
 
+    /// When typing answers, whether upper- and lowercase letters must match
+    /// exactly. Stored per set so every session of the set behaves the same.
+    var checksCapitalization: Bool = false
+
     /// User-chosen SF Symbol. `nil` uses the default set symbol.
     var iconName: String? = nil
 
@@ -42,7 +46,8 @@ final class FlashcardSet {
         notes: String? = nil,
         position: Int = 0,
         iconName: String? = nil,
-        tintIndex: Int? = nil
+        tintIndex: Int? = nil,
+        checksCapitalization: Bool = false
     ) {
         self.id = UUID()
 
@@ -52,6 +57,7 @@ final class FlashcardSet {
         self.position = position
         self.iconName = iconName
         self.tintIndex = tintIndex
+        self.checksCapitalization = checksCapitalization
     }
     
     var sortedFlashcards: [Flashcard] {

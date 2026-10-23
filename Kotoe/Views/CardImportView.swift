@@ -341,3 +341,8 @@ struct CardImportView: View {
         dismiss()
     }
 }
+
+#Preview {
+    CardImportView { _ in }
+        .frame(width: 620, height: 640)
+}

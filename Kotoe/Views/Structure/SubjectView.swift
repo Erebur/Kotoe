@@ -673,3 +673,12 @@ struct SubjectView: View {
         showingNewSet = false
     }
 }
+
+#Preview {
+    let scene = PreviewData.scene()
+
+    return NavigationStack {
+        SubjectView(subject: scene.subject)
+    }
+    .modelContainer(scene.container)
+}

@@ -103,3 +103,17 @@ struct CreateItemSheet: View {
         onCreate()
     }
 }
+
+#Preview {
+    CreateItemSheet(
+        title: "contentView.newSubjectSheet.title",
+        prompt: "contentView.newSubjectSheet.prompt",
+        systemImage: "books.vertical.fill",
+        placeholder: "contentView.newSubjectSheet.namePlaceholder",
+        actionTitle: "contentView.newSubjectSheet.create",
+        name: .constant("Biology"),
+        onCreate: {},
+        onCancel: {}
+    )
+    .frame(width: 440)
+}

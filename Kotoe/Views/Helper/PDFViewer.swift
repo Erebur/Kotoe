@@ -125,3 +125,14 @@ struct PDFKitView: UIViewRepresentable {
 }
 
 #endif
+
+// MARK: - Previews
+
+#Preview("PDF Side") {
+    PDFSideView(fileName: nil)
+        .frame(width: 320, height: 420)
+}
+
+#Preview("PDF Document") {
+    PDFDocumentView(fileName: "preview.pdf")
+}

@@ -7,6 +7,7 @@
 
 import ImageIO
 import PencilKit
+import SwiftData
 import SwiftUI
 
 #if os(macOS)
@@ -682,4 +683,40 @@ struct DrawingEditorView: View {
         drawing = PKDrawing(strokes: Array(drawing.strokes.dropLast()))
     }
     #endif
+}
+
+// MARK: - Previews
+
+#Preview("Rich Text") {
+    let scene = PreviewData.scene()
+
+    return FlashcardSideContentView(
+        side: scene.frontSide,
+        textFont: .title
+    )
+    .padding(24)
+}
+
+#Preview("Placeholders") {
+    let container = PreviewData.container()
+    let context = container.mainContext
+
+    return VStack(spacing: 20) {
+        SidePlaceholder()
+
+        SideImageView(
+            side: PreviewData.emptySide(.image, in: context)
+        )
+
+        SideDrawingView(
+            side: PreviewData.emptySide(.drawing, in: context)
+        )
+    }
+    .padding(24)
+    .modelContainer(container)
+}
+
+#Preview("Drawing Editor") {
+    DrawingEditorView(initial: PKDrawing()) { _ in }
+        .frame(width: 780, height: 600)
 }
