@@ -21,9 +21,13 @@
 </p>
 
 ---
+## Download
+
+* Download via [Testflight](https://testflight.apple.com/join/Qqx8rtmP)
+* Appstore entry is planed
 
 
-## 📄 Notes
+## Notes
 
 - All non-English translations are currently machine translated and have not
   been reviewed
@@ -31,14 +35,7 @@
 
 ---
 
-## 📜 License
+## License
 
-Kōtoe is released under the **MIT License**. The full text lives in
-[`LICENSE`](LICENSE) and is bundled into the app, so it can be shown from
-inside Kōtoe itself.
+Kōtoe is released under the [MIT License](LICENSE).
 
----
-
-<p align="center">
-  <sub>Made with Swift, on a Mac, in the spirit of a well-made paper card.</sub>
-</p>
