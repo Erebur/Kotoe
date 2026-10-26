@@ -165,6 +165,10 @@ states, change the copy, rebuild, and capture again.
 
 Notes:
 
+- **Close the demo window as soon as the screenshots are taken.** The demo runs
+  on the user's own machine and its window (or a simulator window) sits on top
+  of whatever they are doing. Quit the app and shut down any booted simulator
+  when the run is over. Never leave a demo running in the background.
 - Quit other `Kōtoe` instances first
   (`pkill -f "DerivedData/K.*toe"`). macOS keeps one instance per bundle ID,
   so a stale build can keep the old window.
@@ -194,7 +198,8 @@ Notes:
   WebP and belong in the repository; everything else stays outside it.
 - For iOS, boot a simulator and use
   `xcrun simctl io booted screenshot "$DEMO/shot.png"`. Make the target screen
-  the root in the copy for the same reason.
+  the root in the copy for the same reason. Shut the simulator down
+  (`xcrun simctl shutdown booted`) once the capture is done.
 
 ## Worktree workflow
 
