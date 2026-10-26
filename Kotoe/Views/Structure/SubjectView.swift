@@ -17,7 +17,6 @@ struct SubjectView: View {
     @State private var showingNewSet = false
     @State private var newSetName = ""
     @State private var editingSet: FlashcardSet?
-    @State private var setPendingDeletion: FlashcardSet?
     @State private var customizingSet: FlashcardSet?
     @State private var showingAppearance = false
     @State private var isRenaming = false
@@ -89,33 +88,6 @@ struct SubjectView: View {
         .sheet(item: $customizingSet) { set in
             setAppearanceEditor(for: set)
         }
-        .confirmationDialog(
-            "subjectView.deleteSetDialog.title",
-            isPresented: deleteConfirmationBinding,
-            titleVisibility: .visible,
-            presenting: setPendingDeletion
-        ) { set in
-            Button(
-                String(
-                    localized: "subjectView.deleteSetDialog.delete",
-                    defaultValue: "Delete \(set.name)"
-                ),
-                role: .destructive
-            ) {
-                delete(set)
-            }
-            Button("shared.actions.cancel", role: .cancel) {
-                setPendingDeletion = nil
-            }
-        } message: { set in
-            Text(
-                String(
-                    localized: "subjectView.deleteSetDialog.message",
-                    defaultValue:
-                        "\(set.sortedFlashcards.count) cards will be deleted. This can't be undone."
-                )
-            )
-        }
         .onChange(of: subject.name) {
             subject.modifiedAt = .now
         }
@@ -162,17 +134,17 @@ struct SubjectView: View {
                             "subjectView.header.renamePlaceholder",
                             text: $draftName
                         )
-                            .textFieldStyle(.plain)
-                            .font(
-                                .system(
-                                    size: 30,
-                                    weight: .bold,
-                                    design: .rounded
-                                )
+                        .textFieldStyle(.plain)
+                        .font(
+                            .system(
+                                size: 30,
+                                weight: .bold,
+                                design: .rounded
                             )
-                            .lineLimit(1...2)
-                            .focused($isEditingName)
-                            .onSubmit(finishRenaming)
+                        )
+                        .lineLimit(1...2)
+                        .focused($isEditingName)
+                        .onSubmit(finishRenaming)
 
                         Button {
                             finishRenaming()
@@ -411,50 +383,22 @@ struct SubjectView: View {
                     }
 
                     Spacer(minLength: 8)
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.tertiary)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
-            Menu {
-                Button {
-                    customizingSet = set
-                } label: {
-                    Label(
-                        "shared.actions.changeIcon",
-                        systemImage: "paintpalette"
-                    )
-                }
-
-                Button {
-                    editingSet = set
-                } label: {
-                    Label("subjectView.setRow.editCards", systemImage: "pencil")
-                }
-
-                Button(role: .destructive) {
-                    setPendingDeletion = set
-                } label: {
-                    Label("subjectView.setRow.deleteSet", systemImage: "trash")
-                }
+            Button {
+                editingSet = set
             } label: {
-                Image(systemName: "ellipsis")
+                Image(systemName: "pencil")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(set.style.tint)
                     .frame(width: 28, height: 28)
-                    .background(
-                        Color.primary.opacity(0.05),
-                        in: Circle()
-                    )
-                    .contentShape(Circle())
             }
-            .compactMenuStyle()
+            .help("subjectView.setRow.editCards")
+            .buttonStyle(.plain)
             .fixedSize()
-            .help("subjectView.setRow.actionsHelp")
         }
         .cardSurface(padding: 12, tint: style.tint)
         .hoverLift()
@@ -466,18 +410,6 @@ struct SubjectView: View {
                     "shared.actions.changeIcon",
                     systemImage: "paintpalette"
                 )
-            }
-
-            Button {
-                editingSet = set
-            } label: {
-                Label("subjectView.setRow.editCards", systemImage: "pencil")
-            }
-
-            Button(role: .destructive) {
-                setPendingDeletion = set
-            } label: {
-                Label("subjectView.setRow.deleteSet", systemImage: "trash")
             }
         }
         .transition(.scale(scale: 0.97).combined(with: .opacity))
@@ -621,17 +553,6 @@ struct SubjectView: View {
         isRenaming = false
     }
 
-    private var deleteConfirmationBinding: Binding<Bool> {
-        Binding(
-            get: { setPendingDeletion != nil },
-            set: { isPresented in
-                if !isPresented {
-                    setPendingDeletion = nil
-                }
-            }
-        )
-    }
-
     private func createSet() {
         let name = newSetName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
@@ -649,23 +570,6 @@ struct SubjectView: View {
         } catch {
             print("Failed to save flashcard set: \(error)")
         }
-    }
-
-    private func delete(_ set: FlashcardSet) {
-        withAnimation(.snappy(duration: 0.35)) {
-            set.removeMediaFiles()
-            modelContext.delete(set)
-        }
-
-        subject.modifiedAt = .now
-
-        do {
-            try modelContext.save()
-        } catch {
-            print("Failed to delete flashcard set: \(error)")
-        }
-
-        setPendingDeletion = nil
     }
 
     private func closeSheet() {

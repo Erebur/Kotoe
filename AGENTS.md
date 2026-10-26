@@ -260,6 +260,9 @@ the worktree commits should keep their branch history in the main checkout.
   prefix, and the tag matches it.
 - Bump for new content types, storage or sync layers, new screens or flows, and
   model changes. Docs, copy changes, and small fixes do not need a bump.
+- Never change the version number (`MARKETING_VERSION` or
+  `CURRENT_PROJECT_VERSION`) in `Kōtoe.xcodeproj/project.pbxproj` as part of a
+  feature or fix commit. Version numbers are only changed for releases.
 - Tag only commits that are in the main checkout, after transferring the work
   from a worktree; tags created in a worktree are easy to lose. Never move or
   reuse an existing tag — bump the version again instead. Tags are part of the

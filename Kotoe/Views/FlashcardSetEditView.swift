@@ -25,6 +25,7 @@ struct FlashcardSetEditView: View {
     @State private var draftName = ""
     @State private var showingAppearance = false
     @State private var showingImport = false
+    @State private var showingDeleteConfirmation = false
     @FocusState private var isEditingName: Bool
 
     private var cards: [Flashcard] {
@@ -79,6 +80,7 @@ struct FlashcardSetEditView: View {
             .toolbar {
                 #if os(iOS)
                 ToolbarItem(placement: .confirmationAction) {
+                    deleteButton
                     doneButton
                 }
                 #endif
@@ -94,6 +96,32 @@ struct FlashcardSetEditView: View {
                     importCards(imported)
                 }
             }
+            .confirmationDialog(
+                "setEditView.deleteSetDialog.title",
+                isPresented: $showingDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(
+                    String(
+                        localized: "setEditView.deleteSetDialog.delete",
+                        defaultValue: "Delete \(flashcardSet.name)"
+                    ),
+                    role: .destructive
+                ) {
+                    deleteSet()
+                }
+                Button("shared.actions.cancel", role: .cancel) {
+                    showingDeleteConfirmation = false
+                }
+            } message: {
+                Text(
+                    String(
+                        localized: "setEditView.deleteSetDialog.message",
+                        defaultValue:
+                            "\(flashcardSet.sortedFlashcards.count) cards will be deleted. This can't be undone."
+                    )
+                )
+            }
         }
         .tint(tint)
         .editorSheetSize(width: 680, height: 740)
@@ -108,12 +136,24 @@ struct FlashcardSetEditView: View {
         .keyboardShortcut(.defaultAction)
     }
 
+    /// Destructive button that confirms deletion in a confirmation dialog.
+    private var deleteButton: some View {
+        Button(role: .destructive) {
+            showingDeleteConfirmation = true
+        } label: {
+            Label("setEditView.deleteSet.title", systemImage: "trash")
+        }
+        .help("setEditView.deleteSet.help")
+    }
+
     #if os(macOS)
     /// The native macOS sheet action bar does not pick up the tinted
     /// background, so the sheet uses an in-content footer instead.
     private var sheetFooter: some View {
         HStack {
             Spacer()
+
+            deleteButton
 
             doneButton
                 .buttonStyle(.borderedProminent)
@@ -447,6 +487,24 @@ struct FlashcardSetEditView: View {
 
         isEditingName = false
         isRenaming = false
+    }
+
+    /// Deletes the set and all of its cards, then dismisses the editor.
+    private func deleteSet() {
+        guard let subject = flashcardSet.subject else { return }
+
+        flashcardSet.removeMediaFiles()
+        modelContext.delete(flashcardSet)
+
+        subject.modifiedAt = .now
+
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to delete flashcard set: \(error)")
+        }
+
+        dismiss()
     }
 
     private func addCard() {
@@ -1427,9 +1485,9 @@ private struct FileImportError: Identifiable {
     let scene = PreviewData.scene()
     let tint = KotoeTheme.palette[2]
 
-    return List {
+    return VStack(spacing: 20) {
         CardRow(card: scene.card, index: 1)
-
+        
         ReorderableCardRow(
             card: scene.card,
             index: 2,
@@ -1440,6 +1498,9 @@ private struct FileImportError: Identifiable {
             onDrop: { _ in }
         )
     }
+    .padding(40)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(KotoeTheme.windowBackground)
     .modelContainer(scene.container)
 }
 
