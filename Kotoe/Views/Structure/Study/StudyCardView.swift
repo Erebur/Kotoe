@@ -161,7 +161,7 @@ struct StudyCardView: View {
 
                 Spacer(minLength: 0)
 
-                FlashcardSideContentView(side: side, textFont: .title)
+                FlashcardSideContentView(side: side, textStyle: .title)
                     .frame(maxWidth: .infinity)
 
                 Spacer(minLength: 0)

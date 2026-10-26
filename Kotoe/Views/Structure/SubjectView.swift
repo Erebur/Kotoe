@@ -300,22 +300,22 @@ struct SubjectView: View {
                 systemImage: "note.text"
             )
 
-            TextField(
-                "subjectView.notes.placeholder",
-                text: notesBinding,
-                axis: .vertical
+            RichTextField(
+                placeholder: "subjectView.notes.placeholder",
+                attributedText: notesBinding,
+                tint: subject.style.tint,
+                minHeight: 80,
+                maxHeight: 260
             )
-            .textFieldStyle(.plain)
-            .lineLimit(3...12)
         }
         .cardSurface(padding: 18)
     }
 
-    private var notesBinding: Binding<String> {
+    private var notesBinding: Binding<NSAttributedString> {
         Binding(
-            get: { subject.notes ?? "" },
-            set: { newValue in
-                subject.notes = newValue.isEmpty ? nil : newValue
+            get: { subject.attributedNotes },
+            set: {
+                subject.attributedNotes = $0
                 subject.modifiedAt = .now
             }
         )

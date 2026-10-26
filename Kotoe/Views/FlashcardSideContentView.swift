@@ -55,11 +55,14 @@ extension FlashcardSide {
         }
     }
 
-    /// Short description used in lists.
+    /// Short description used in lists. Markdown markers are removed so a
+    /// row shows "bold text" rather than "**bold text**".
     var summary: String {
         switch contentType {
         case .richText:
-            let text = plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = MarkdownFormatter.plainText(from: plainText)
+                .replacingOccurrences(of: "\n", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             return text.isEmpty
                 ? String(localized: "shared.content.empty")
                 : text
@@ -104,8 +107,14 @@ extension FlashcardContentType {
 
 struct FlashcardSideContentView: View {
 
+    /// Text sizes used for card content.
+    enum TextStyle: Equatable {
+        case title
+        case title2
+    }
+
     let side: FlashcardSide?
-    var textFont: Font = .title2
+    var textStyle: TextStyle = .title2
 
     var body: some View {
         if let side {
@@ -123,10 +132,17 @@ struct FlashcardSideContentView: View {
             if text.isEmpty {
                 placeholder
             } else {
-                Text(text)
-                    .font(textFont)
-                    .multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.6)
+                RichTextLabel(
+                    attributedText: MarkdownFormatter.rendered(
+                        text,
+                        style: MarkdownFormatter.Style(
+                            baseFont: platformFont,
+                            alignment: .center,
+                            rendersMath: true
+                        )
+                    ),
+                    alignment: .center
+                )
             }
 
         case .image:
@@ -145,6 +161,16 @@ struct FlashcardSideContentView: View {
 
     private var placeholder: some View {
         SidePlaceholder()
+    }
+
+    /// Concrete platform font for the chosen card text size.
+    private var platformFont: FormatFont {
+        let isTitle = textStyle == .title
+        #if os(macOS)
+        return NSFont.preferredFont(forTextStyle: isTitle ? .title1 : .title2)
+        #else
+        return UIFont.preferredFont(forTextStyle: isTitle ? .title1 : .title2)
+        #endif
     }
 }
 
@@ -692,7 +718,7 @@ struct DrawingEditorView: View {
 
     return FlashcardSideContentView(
         side: scene.frontSide,
-        textFont: .title
+        textStyle: .title
     )
     .padding(24)
 }

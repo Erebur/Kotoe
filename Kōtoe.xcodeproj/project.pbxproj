@@ -10,6 +10,7 @@
 		D50EA36030881179006DD902 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = D50EA35D30881179006DD902 /* Localizable.xcstrings */; };
 		D5ADAEA03086B23B00FAAC41 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = D5ADAE9F3086B23B00FAAC41 /* AppIcon.icon */; };
 		D5B000002F1A0001000000001 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = D5B000002F1A0001000000002 /* LICENSE */; };
+		D5C0FFEE2F1A0001000000A3 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = D5C0FFEE2F1A0001000000A2 /* SwiftMath */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -45,6 +46,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D5C0FFEE2F1A0001000000A3 /* SwiftMath in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,6 +92,7 @@
 			);
 			name = "Kōtoe";
 			packageProductDependencies = (
+				D5C0FFEE2F1A0001000000A2 /* SwiftMath */,
 			);
 			productName = Kotoe;
 			productReference = D512862030856EF500DBA69D /* Kōtoe.app */;
@@ -123,6 +126,9 @@
 			);
 			mainGroup = D512861730856EF500DBA69D;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D5C0FFEE2F1A0001000000A1 /* XCRemoteSwiftPackageReference "SwiftMath" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D512862130856EF500DBA69D /* Products */;
 			projectDirPath = "";
@@ -409,6 +415,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		D5C0FFEE2F1A0001000000A1 /* XCRemoteSwiftPackageReference "SwiftMath" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mgriebling/SwiftMath.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.7.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D5C0FFEE2F1A0001000000A2 /* SwiftMath */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D5C0FFEE2F1A0001000000A1 /* XCRemoteSwiftPackageReference "SwiftMath" */;
+			productName = SwiftMath;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = D512861830856EF500DBA69D /* Project object */;
 }

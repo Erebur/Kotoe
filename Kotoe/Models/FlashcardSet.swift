@@ -17,6 +17,10 @@ final class FlashcardSet {
     var name: String = ""
     var notes: String?
 
+    /// Rich text of the notes, serialized as RTF. `notes` keeps the plain
+    /// string in sync so existing readers keep working.
+    var notesRichTextData: Data? = nil
+
     var createdAt: Date = Date.now
     var modifiedAt: Date = Date.now
 
@@ -64,6 +68,31 @@ final class FlashcardSet {
         (flashcards ?? [])
             .filter { !$0.isArchived }
             .sorted { $0.position < $1.position }
+    }
+}
+
+// MARK: - Rich Text
+
+extension FlashcardSet {
+
+    /// The notes as rich text, stored as RTF. Writing here keeps `notes` in
+    /// sync with the plain string so existing readers keep working.
+    var attributedNotes: NSAttributedString {
+        get {
+            if let data = notesRichTextData,
+               let attributed = try? NSAttributedString(
+                   data: data,
+                   options: [.documentType: NSAttributedString.DocumentType.rtf],
+                   documentAttributes: nil
+               ) {
+                return attributed
+            }
+            return NSAttributedString(string: notes ?? "")
+        }
+        set {
+            notesRichTextData = newValue.rtfData
+            notes = newValue.string.isEmpty ? nil : newValue.string
+        }
     }
 }
 

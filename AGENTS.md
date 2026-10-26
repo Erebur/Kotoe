@@ -31,8 +31,8 @@ repetition scheduling, archiving, export, search, and tests do not.
 | Xcode | 27.1 (`objectVersion = 77`) |
 | Bundle ID | `com.erebur.kotoe`, team `XMGF5HVWMW` |
 | Localization | String Catalog; English source plus de, es, fr, ja |
-| Dependencies | None. No SPM packages, CocoaPods, or generated code. |
-| Libraries used | SwiftUI, SwiftData, PencilKit, PhotosUI, PDFKit, ImageIO |
+| Dependencies | SwiftMath 1.7.3 (SPM) for LaTeX typesetting. No CocoaPods or generated code. |
+| Libraries used | SwiftUI, SwiftData, PencilKit, PhotosUI, PDFKit, ImageIO, SwiftMath |
 
 The Xcode project uses a **file-system-synchronized group**, so any `.swift`
 file added anywhere under `Kotoe/` is compiled automatically. Do **not**
@@ -64,7 +64,9 @@ xcodebuild -project "Kōtoe.xcodeproj" -scheme "Kōtoe" \
   -destination 'platform=macOS,arch=arm64' build
 ```
 
-Open in Xcode: `open "Kōtoe.xcodeproj"`.
+The first build resolves `SwiftMath` from GitHub, so it needs network access
+(the package is cached afterwards in DerivedData). Open in Xcode:
+`open "Kōtoe.xcodeproj"`.
 
 Available simulators include `iPhone 17`, `iPad (A16)`, and `iPad Air 11-inch
 (M4)` (iOS 27.0). List them with `xcrun simctl list devices available`; boot with
@@ -315,6 +317,14 @@ Kotoe/
       CreateItemSheet.swift      shared "create subject / create set" prompt
       PreviewData.swift          in-memory sample models for Xcode previews
       PDFViewer.swift            PDFKit wrapper + full document viewer
+      RichTextField.swift        cross-platform markdown source editor; styles
+                                  attributes only (never replaces characters),
+                                  continues lists on Return, no formatting buttons
+      MarkdownFormatter.swift    markdown → NSAttributedString converter; styles
+                                  editor source and renders card output (lists,
+                                  code, links, LaTeX via SwiftMath)
+      RichTextLabel.swift        read-only native label for rendered attributed
+                                  text, including inline LaTeX images
       If.swift                   shared `if` view modifier
       Clipboard.swift            pasteboard access for the card import
     Structure/
@@ -345,7 +355,10 @@ Subject ──< FlashcardSet ──< Flashcard ─┬─< FlashcardSide (role: f
 - Do not add `@Attribute(.unique)` — CloudKit does not support unique
   constraints.
 - A side's payload is chosen by `contentType`:
-  - `.richText` → `richTextData` (RTF; currently edited as plain text)
+  - `.richText` → `richTextData` (RTF). Read/write rich text through the
+    `attributedText` computed property, which decodes/encodes RTF. Rich text
+    fields are edited with `RichTextField` as markdown source (see
+    **Card editing & import**).
   - `.image` → `mediaFileName` (original JPEG/HEIC/PNG file)
   - `.drawing` → `mediaFileName` (`PKDrawing.dataRepresentation()`, vector)
   - `.pdf` → `mediaFileName` (imported PDF document)
@@ -354,6 +367,9 @@ Subject ──< FlashcardSet ──< Flashcard ─┬─< FlashcardSide (role: f
   `drawingData` blobs. Only one payload is populated at a time; use
   `updateRichText`, `updateImage`, `updateDrawing`, `updatePDF`, and
   `clearContent` (which also deletes the file).
+- `Subject` and `FlashcardSet` store rich-text notes in `notesRichTextData`
+  (RTF). Read/write through the `attributedNotes` computed property, which also
+  keeps the legacy `notes` string in sync. Edit with `RichTextField`.
 - `isArchived` and `position` exist on all levels. `sortedFlashcardSets` and
   `sortedFlashcards` filter archived items and sort by `position`. There is no
   archive UI yet, but queries and computed properties already respect the flag.
@@ -393,6 +409,17 @@ card row opens the editor for an existing one.
   stores `.image` and `.pdf` separately, and the picker maps between the
   two. A side that holds a file shows the file controls, everything else is
   refused with an alert.
+- Text sides are edited with `RichTextField` as a **markdown source editor**
+  (see `MarkdownFormatter`). Supported conventions: `* `/`- ` bullets,
+  `1. ` ordered lists, `- [ ]`/`- [x]` tasks, `#`…`######` headings,
+  `> ` quotes, `---` rules, fenced code, `**bold**`, `*italic*`,
+  `~~strikethrough~~`, `` `code` ``, `[label](url)`, and
+  `$inline$`/`$$display$$` LaTeX.
+  Formatting is applied as **attributes only**: the editor never replaces
+  characters, so the caret, selection, undo stack, autocorrection and input
+  methods behave natively. Markdown markers stay visible but dimmed.
+  Return continues a list (and ends it on an empty item). There are no
+  formatting buttons.
 - The file picker accepts every file (`UTType.item`); `ImportedFile` decides
   what the file becomes — a PDF stays a PDF, an image is stored as an image,
   a text file becomes text. Picking a file also switches the side's
@@ -629,6 +656,16 @@ text — do not paste it into Swift code or the string catalog.
   `com.apple.security.files.user-selected.read-only`, and imports must call
   `startAccessingSecurityScopedResource()` before reading and balance it with
   `stopAccessingSecurityScopedResource()`.
+- `MarkdownFormatter` has two entry points and they are not
+  interchangeable: `styledSource` keeps every character (only attributes
+  change) and is for the editor; `rendered` removes markers and is for display.
+  Never feed `rendered` back into the editor, and never restyle a text view by
+  assigning a new attributed string — that resets the caret to the end.
+  Apply attributes run by run to the existing `textStorage` instead.
+- LaTeX is typeset by SwiftMath at the current font size and embedded as an
+  `NSTextAttachment`. `RichTextLabel` wraps `UILabel`/`NSTextField` because
+  SwiftUI `Text` drops attachments. The math image is rasterized, so it does
+  not follow Dynamic Type after rendering.
 
 ## Where to change what
 
@@ -639,6 +676,11 @@ text — do not paste it into Swift code or the string catalog.
   `Views/Structure/StudyView.swift` and `Models/FlashcardReview.swift`.
 - Change card rendering or add a content type: `FlashcardSideContentView.swift`
   plus the `FlashcardContentType` enum and the side editor's picker.
+- Change markdown conventions or LaTeX rendering: `Views/Helper/MarkdownFormatter.swift`
+  (`styledSource` for the editor, `rendered` for cards).
+- Change the editor's typing behavior (list continuation, focus, sizing) or
+  the rich text label: `Views/Helper/RichTextField.swift` and
+  `Views/Helper/RichTextLabel.swift`.
 - Change how bulk imports are parsed (separator, escaping):
   `Import/TextCardImporter.swift`.
 - Change the import sheet (paste, file, preview): `Views/CardImportView.swift`.
@@ -676,7 +718,10 @@ text — do not paste it into Swift code or the string catalog.
   Anki/CSV file import, no search, and no tags.
 - Non-English UI strings are machine translated and have not been reviewed by
   native speakers. The app does not point this out to the user.
-- Rich text is stored as RTF but edited and rendered as plain text.
+- The text editor is a styled source view, not WYSIWYG: markers stay visible
+  (dimmed) and math shows its source while editing. Math is typeset only in
+  rendered output (cards) through SwiftMath, so a build needs network access
+  the first time the package is resolved.
 - CloudKit sync failures are logged and listed behind the library footer; the
   log only covers the current session and there is no retry button, no
   `CKContainer.accountStatus` check, and the model container still calls

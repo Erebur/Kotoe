@@ -253,4 +253,29 @@ extension FlashcardSide {
     func updateDrawing(_ drawing: PKDrawing) {
         updateDrawing(drawing.dataRepresentation())
     }
+
+    // MARK: - Rich Text
+
+    /// The rich text of the side, decoded from the stored RTF. Falls back to
+    /// the plain text when there is no RTF data.
+    var attributedText: NSAttributedString {
+        get {
+            if let data = richTextData,
+               let attributed = try? NSAttributedString(
+                   data: data,
+                   options: [.documentType: NSAttributedString.DocumentType.rtf],
+                   documentAttributes: nil
+               ) {
+                return attributed
+            }
+            return NSAttributedString(string: plainText)
+        }
+        set {
+            if let data = newValue.rtfData {
+                updateRichText(data)
+            } else {
+                clearContent()
+            }
+        }
+    }
 }

@@ -81,7 +81,7 @@ struct StudyView: View {
     @State private var sessionMode: StudyMode = .guess
     @State private var sessionShuffled = false
 
-    @State private var typedAnswer = ""
+    @State private var typedAnswer = NSAttributedString()
 
     // MARK: Typing verdict state
 
@@ -274,7 +274,7 @@ struct StudyView: View {
             isFlipped = false
             flipSignal = 0
             generation += 1
-            typedAnswer = ""
+            typedAnswer = NSAttributedString()
             lastTypedCard = nil
             lastTypedCorrect = false
             showsStart = false
@@ -304,7 +304,7 @@ struct StudyView: View {
             // state without flipping the outgoing card back while it leaves.
             generation += 1
             isFlipped = false
-            typedAnswer = ""
+            typedAnswer = NSAttributedString()
         }
 
         record(correct, for: card)
@@ -316,12 +316,17 @@ struct StudyView: View {
         guard sessionMode == .type, !isFlipped, !queue.isEmpty else { return }
 
         let card = queue.first!
-        let expected = card.back?.plainText ?? ""
+        let expected = MarkdownFormatter.plainText(
+            from: card.back?.plainText ?? ""
+        )
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        let answer = typedAnswer.string
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let correct: Bool
         if checksCapitalization {
-            correct = typedAnswer == expected
+            correct = answer == expected
         } else {
-            correct = typedAnswer.lowercased() == expected.lowercased()
+            correct = answer.lowercased() == expected.lowercased()
         }
 
         lastTypedCorrect = correct
@@ -354,7 +359,7 @@ struct StudyView: View {
 
             generation += 1
             isFlipped = false
-            typedAnswer = ""
+            typedAnswer = NSAttributedString()
             lastTypedCard = nil
         }
     }

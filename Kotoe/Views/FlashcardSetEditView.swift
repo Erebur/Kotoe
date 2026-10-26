@@ -301,22 +301,22 @@ struct FlashcardSetEditView: View {
                 systemImage: "note.text"
             )
 
-            TextField(
-                "setEditView.notes.placeholder",
-                text: notesBinding,
-                axis: .vertical
+            RichTextField(
+                placeholder: "setEditView.notes.placeholder",
+                attributedText: notesBinding,
+                tint: flashcardSet.style.tint,
+                minHeight: 80,
+                maxHeight: 260
             )
-            .textFieldStyle(.plain)
-            .lineLimit(2...8)
         }
         .cardSurface(padding: 18)
     }
 
-    private var notesBinding: Binding<String> {
+    private var notesBinding: Binding<NSAttributedString> {
         Binding(
-            get: { flashcardSet.notes ?? "" },
-            set: { newValue in
-                flashcardSet.notes = newValue.isEmpty ? nil : newValue
+            get: { flashcardSet.attributedNotes },
+            set: {
+                flashcardSet.attributedNotes = $0
                 flashcardSet.modifiedAt = .now
             }
         )
@@ -1115,26 +1115,21 @@ private struct SideEditorSection: View {
 
     // MARK: Text
 
-    private var textBinding: Binding<String> {
+    private var textBinding: Binding<NSAttributedString> {
         Binding(
-            get: { side.plainText },
-            set: { side.setPlainText($0) }
+            get: { side.attributedText },
+            set: { side.attributedText = $0 }
         )
     }
 
     private var textControls: some View {
-        TextField(placeholder, text: textBinding, axis: .vertical)
-            .textFieldStyle(.plain)
-            .lineLimit(3...12)
-            .padding(12)
-            .background(
-                KotoeTheme.fieldBackground,
-                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(KotoeTheme.hairline, lineWidth: 1)
-            )
+        RichTextField(
+            placeholder: placeholder,
+            attributedText: textBinding,
+            tint: tint,
+            minHeight: 100,
+            maxHeight: 400
+        )
     }
 
     // MARK: File

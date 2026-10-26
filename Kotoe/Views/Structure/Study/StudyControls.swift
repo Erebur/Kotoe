@@ -16,7 +16,7 @@ struct StudyControls: View {
     let isFlipped: Bool
     let sessionMode: StudyMode
     let checksCapitalization: Bool
-    let typedAnswer: Binding<String>
+    let typedAnswer: Binding<NSAttributedString>
     let lastTypedCorrect: Bool
     let tint: Color
 
@@ -48,25 +48,15 @@ struct StudyControls: View {
     }
 
     var textField: some View {
-        HStack(spacing: 10) {
-            TextField(
-                "studyView.start.placeholder",
-                text: typedAnswer
-            )
-            .textFieldStyle(.plain)
-            .font(.body)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
-            .background(
-                KotoeTheme.fieldBackground,
-                in: RoundedRectangle(
-                    cornerRadius: 12,
-                    style: .continuous
-                )
-            )
-            .onSubmit(onSubmit)
-            .submitLabel(.done)
-        }
+        RichTextField(
+            placeholder: "studyView.start.placeholder",
+            attributedText: typedAnswer,
+            tint: tint,
+            minHeight: 34,
+            maxHeight: 72,
+            submitsOnReturn: true,
+            onSubmit: onSubmit
+        )
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
@@ -100,7 +90,7 @@ struct StudyControls: View {
             isFlipped: true,
             sessionMode: .guess,
             checksCapitalization: false,
-            typedAnswer: .constant(""),
+            typedAnswer: .constant(NSAttributedString()),
             lastTypedCorrect: true,
             tint: KotoeTheme.accent,
             onNext: { },
@@ -111,7 +101,7 @@ struct StudyControls: View {
             isFlipped: false,
             sessionMode: .guess,
             checksCapitalization: false,
-            typedAnswer: .constant(""),
+            typedAnswer: .constant(NSAttributedString()),
             lastTypedCorrect: true,
             tint: KotoeTheme.accent,
             onNext: { },
@@ -122,7 +112,7 @@ struct StudyControls: View {
             isFlipped: false,
             sessionMode: .type,
             checksCapitalization: true,
-            typedAnswer: .constant(""),
+            typedAnswer: .constant(NSAttributedString()),
             lastTypedCorrect: true,
             tint: KotoeTheme.accent,
             onNext: { },
