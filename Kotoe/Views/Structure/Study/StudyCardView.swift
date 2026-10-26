@@ -22,9 +22,13 @@ struct StudyCardView: View {
     let onFlipChanged: (Bool) -> Void
     let onAnswer: (Bool) -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     @State private var isFlipped = false
     @State private var dragOffset: CGSize = .zero
     @State private var dragDirection: Int = 0 // 1 = correct, -1 = incorrect, 0 = none
+
+    private let cornerRadius: CGFloat = 28
 
     var body: some View {
         ZStack {
@@ -50,7 +54,7 @@ struct StudyCardView: View {
         }
         .animation(.snappy(duration: 0.28), value: isFlipped)
         .contentShape(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         )
         .offset(x: dragOffset.width, y: dragOffset.height)
         .rotationEffect(.degrees(dragOffset.width / 18))
@@ -105,40 +109,45 @@ struct StudyCardView: View {
         tint: Color,
         showsHint: Bool
     ) -> some View {
-        ZStack {
-            // Gradient card background echoing the app's brand gradient.
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            tint.mix(with: .black, by: 0.18),
-                            tint.mix(with: .black, by: 0.34)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    .opacity(0.9)
+        let shape = RoundedRectangle(
+            cornerRadius: cornerRadius,
+            style: .continuous
+        )
+
+        return ZStack {
+            // Saturated gradient in the subject/set color, with the same
+            // warm gold glow the ambient background uses.
+            shape.fill(backgroundGradient(tint: tint))
+
+            shape.fill(
+                RadialGradient(
+                    colors: [.white.opacity(0.24), .clear],
+                    center: .topLeading,
+                    startRadius: 0,
+                    endRadius: 520
                 )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(KotoeTheme.cardBackground.opacity(0.85))
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [.white.opacity(0.35), .white.opacity(0.08)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1.5
-                        )
-                }
-                .shadow(
-                    color: .black.opacity(0.22),
-                    radius: 24,
-                    y: 12
+            )
+
+            shape.fill(
+                RadialGradient(
+                    colors: [KotoeTheme.gold.opacity(0.24), .clear],
+                    center: .bottomTrailing,
+                    startRadius: 10,
+                    endRadius: 460
                 )
+            )
+
+            // Oversized watermark of the face symbol, clipped by the card.
+            Image(systemName: symbol)
+                .font(.system(size: 190, weight: .bold))
+                .foregroundStyle(.white.opacity(0.09))
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: .bottomTrailing
+                )
+                .offset(x: 34, y: 46)
+                .allowsHitTesting(false)
 
             VStack(spacing: 16) {
                 HStack {
@@ -151,10 +160,14 @@ struct StudyCardView: View {
                             .textCase(.uppercase)
                             .tracking(1.2)
                     }
-                    .foregroundStyle(tint)
+                    .foregroundStyle(.white.opacity(0.95))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(tint.opacity(0.20), in: Capsule())
+                    .background(.white.opacity(0.20), in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+                    }
 
                     Spacer()
                 }
@@ -172,14 +185,42 @@ struct StudyCardView: View {
                         Text("studyView.card.tapToFlip")
                     }
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.white.opacity(0.72))
                 }
             }
-            .padding(22)
+            .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.14), radius: 6, y: 1)
+
+            shape.strokeBorder(
+                LinearGradient(
+                    colors: [.white.opacity(0.45), .white.opacity(0.06)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: 1.5
+            )
         }
-        .clipShape(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+        .clipShape(shape)
+        .shadow(color: tint.opacity(0.34), radius: 26, y: 14)
+        .shadow(color: .black.opacity(0.16), radius: 8, y: 2)
+    }
+
+    /// Light comes from the top-left in the rest of the app, so the card is
+    /// lightest there and deepest in the opposite corner.
+    private func backgroundGradient(tint: Color) -> LinearGradient {
+        let lightStop = colorScheme == .dark ? 0.04 : 0.14
+        let darkStop = colorScheme == .dark ? 0.46 : 0.30
+
+        return LinearGradient(
+            colors: [
+                tint.mix(with: .white, by: lightStop),
+                tint,
+                tint.mix(with: .black, by: darkStop),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
         )
     }
 

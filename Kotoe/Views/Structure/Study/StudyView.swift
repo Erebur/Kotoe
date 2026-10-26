@@ -218,7 +218,7 @@ struct StudyView: View {
                     )
                 )
                 .contentShape(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
                 )
                 .onTapGesture {
                     guard sessionMode == .guess else { return }

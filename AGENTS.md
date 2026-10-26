@@ -502,7 +502,10 @@ card row opens the editor for an existing one.
 - Every mark updates `isKnown` / `lastReviewedAt`, appends a
   `FlashcardReview`, and saves the context so the state survives relaunch
   and syncs through iCloud.
-- The study card has a gradient background echoing the app's brand gradient.
+- The study card is a saturated gradient in the set's tint (darkened toward the
+  bottom trailing corner, with a warm gold glow and a large watermark symbol),
+  matching the brand gradient. Its text and hints are white on the color, and
+  the label capsule uses a translucent white fill.
 - The progress row drops its card container: it uses a smaller ring whose
   green segment shows learned cards and whose red segment shows incorrect
   cards, followed by the "known of total" and "cards left" labels.
