@@ -332,8 +332,10 @@ Kotoe/
                                   (HighlighterSwift); language tags, aliases,
                                   light/dark Xcode themes, span cache
       RichTextStyleGuideView.swift  style guide sheet with a split style sample
+      RichTextScrolling.swift    macOS momentum gate for the field's scroll
+                                  views + proportional split-pane scroll sync
       RichTextLabel.swift        read-only native label for rendered attributed
-                                  text, including inline LaTeX images
+                                  text (inline LaTeX) and the scrollable preview
       If.swift                   shared `if` view modifier
       Clipboard.swift            pasteboard access for the card import
     Structure/
@@ -707,22 +709,28 @@ text — do not paste it into Swift code or the string catalog.
   font and background are discarded. `styleBlocks` returns the fenced ranges
   that `styleInline` must skip. `rendered(..., highlightingCode: false)` keeps
   summaries and typed-answer judging from loading the JS engine at all.
-- On macOS the text field's `NSTextView` sits in a `RichTextScrollView` that
-  swallows momentum wheel events once the text is scrolled to its top or
-  bottom, so a flick that reaches the end does not throw the enclosing form.
-  Finger-driven scrolling and a field whose text fits pass the gesture through.
+- On macOS the text field's `NSTextView` and the preview's label sit in
+  `RichTextScrollView` (`RichTextScrolling.swift`), which swallows momentum
+  wheel events once its content is scrolled to its top or bottom, so a flick
+  that reaches the end does not throw the enclosing form. Finger-driven
+  scrolling and a field whose text fits pass the gesture through.
 - The rich text field's split view is side by side on macOS and stacked on
-  iOS. In preview and split the editor stays mounted but invisible so its
-  measured height keeps sizing the field; the hidden copy is read-only and
-  measures at full width, so all three modes report the same height and
-  switching does not move the layout (the split panes scroll instead of
-  growing the field). Switching to preview also resigns first responder so the
-  keyboard does not cover the mode switch. The mode switch is an overlay chip
-  in the field's bottom trailing corner rather than a footer row; the native
-  text views carry a matching bottom content inset so the last line can
-  scroll out from under it. The style guide sheet gives its sample field
-  `fillsHeight` so it uses the whole sheet, and the info and mode-switch
-  buttons show the pointing-hand cursor on macOS.
+  iOS. Its editor and preview panes scroll together: `SplitScrollSync` maps one
+  pane's offset to the same fraction of the other pane's scrollable range, in
+  both directions, and suppresses the echo of its own scrolls. The preview is
+  a native `NSScrollView`/`UIScrollView` wrapper (not a SwiftUI `ScrollView`)
+  so it can take part in that sync and inherit the momentum gate; preview mode
+  uses the same view without a sync partner. In preview and split the editor
+  stays mounted but invisible so its measured height keeps sizing the field;
+  the hidden copy is read-only and measures at full width, so all three modes
+  report the same height and switching does not move the layout (the split
+  panes scroll instead of growing the field). Switching to preview also
+  resigns first responder so the keyboard does not cover the mode switch. The
+  mode switch is an overlay chip in the field's bottom trailing corner rather
+  than a footer row; the native text views carry a matching bottom content
+  inset so the last line can scroll out from under it. The style guide sheet
+  gives its sample field `fillsHeight` so it uses the whole sheet, and the info
+  and mode-switch buttons show the pointing-hand cursor on macOS.
 
 ## Where to change what
 
@@ -741,6 +749,9 @@ text — do not paste it into Swift code or the string catalog.
 - Change the editor's typing behavior (list continuation, focus, sizing) or
   the rich text label: `Views/Helper/RichTextField.swift` and
   `Views/Helper/RichTextLabel.swift`.
+- Change text-field scrolling, the macOS momentum gate, or the split-pane
+  scroll sync: `Views/Helper/RichTextScrolling.swift`; the scrollable preview
+  pane lives in `Views/Helper/RichTextLabel.swift`.
 - Change the style guide sheet or the editor/split/preview switch:
   `Views/Helper/RichTextStyleGuideView.swift` and
   `Views/Helper/RichTextField.swift`.

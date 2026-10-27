@@ -68,6 +68,7 @@ struct RichTextField: View {
     @State private var editorHeight: CGFloat = 0
     @State private var splitEditorHeight: CGFloat = 0
     @State private var showsStyleGuide = false
+    @State private var splitSync = SplitScrollSync()
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -139,7 +140,7 @@ struct RichTextField: View {
             ZStack {
                 measuringEditor
 
-                previewPane
+                previewPane(sync: nil)
             }
 
         case .split:
@@ -156,7 +157,8 @@ struct RichTextField: View {
 
     private func editor(
         height: Binding<CGFloat>,
-        editable: Bool? = nil
+        editable: Bool? = nil,
+        sync: SplitScrollSync? = nil
     ) -> some View {
         RichTextEditor(
             attributedText: $attributedText,
@@ -166,7 +168,8 @@ struct RichTextField: View {
             onSubmit: onSubmit,
             isEditable: editable ?? isEditable,
             bottomInset: floatingSwitch ? 30 : 0,
-            appearance: appearance
+            appearance: appearance,
+            sync: sync
         )
         // Reserve room for the info button without shifting the text's left
         // edge; the text views inset both sides equally.
@@ -186,31 +189,26 @@ struct RichTextField: View {
     private var splitContent: some View {
         #if os(macOS)
         HStack(spacing: 0) {
-            editor(height: $splitEditorHeight)
+            editor(height: $splitEditorHeight, sync: splitSync)
             Divider().opacity(0.5)
-            previewPane
+            previewPane(sync: splitSync)
         }
         #else
         VStack(spacing: 0) {
-            editor(height: $splitEditorHeight)
+            editor(height: $splitEditorHeight, sync: splitSync)
             Divider().opacity(0.5)
-            previewPane
+            previewPane(sync: splitSync)
         }
         #endif
     }
 
-    private var previewPane: some View {
-        ScrollView {
-            RichTextLabel(
-                attributedText: renderedPreview,
-                alignment: .natural
-            )
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 10)
-            .padding(.leading, 13)
-            .padding(.trailing, showsStyleControls ? 34 : 13)
-            .padding(.bottom, floatingSwitch ? 38 : 10)
-        }
+    private func previewPane(sync: SplitScrollSync?) -> some View {
+        RichTextPreview(
+            attributedText: renderedPreview,
+            bottomInset: floatingSwitch ? 28 : 0,
+            trailingInset: showsStyleControls ? 21 : 0,
+            sync: sync
+        )
     }
 
     private var renderedPreview: NSAttributedString {
@@ -435,54 +433,6 @@ enum MarkdownListContinuation {
 
 #if os(macOS)
 
-/// A scroll view that keeps the momentum of a scroll gesture inside the text
-/// field once its text reaches the top or bottom. AppKit otherwise chains the
-/// leftover inertia to the enclosing scroll view, which throws the form the
-/// field sits in right after the fingers lift. Finger-driven scrolling and a
-/// field whose text fits still pass the gesture through, so the page scrolls
-/// normally.
-private final class RichTextScrollView: NSScrollView {
-
-    override func scrollWheel(with event: NSEvent) {
-        let delta = event.scrollingDeltaY
-        guard delta != 0 else {
-            super.scrollWheel(with: event)
-            return
-        }
-
-        // Only the momentum tail is blocked; while the fingers are still on
-        // the trackpad an exhausted field may chain to the enclosing view.
-        if !event.momentumPhase.isEmpty,
-           isAtVerticalEdge(towards: delta) {
-            return
-        }
-
-        super.scrollWheel(with: event)
-    }
-
-    /// `delta` follows AppKit's convention: positive scrolls toward the top.
-    private func isAtVerticalEdge(towards delta: CGFloat) -> Bool {
-        guard let documentView else { return false }
-
-        let visible = documentVisibleRect
-        let contentHeight = documentView.frame.height
-        let scrollableHeight =
-            contentHeight + contentInsets.top + contentInsets.bottom
-        guard scrollableHeight > visible.height + 0.5 else {
-            // The text fits; the field has nothing to scroll.
-            return false
-        }
-
-        if delta > 0 {
-            return visible.minY <= -contentInsets.top + 0.5
-        }
-        // The bottom inset is room for the floating mode switch, so the
-        // last line can scroll clear of it; count it as part of the content.
-        let bottom = contentHeight + contentInsets.bottom
-        return visible.maxY >= bottom - 0.5
-    }
-}
-
 struct RichTextEditor: NSViewRepresentable {
 
     @Binding var attributedText: NSAttributedString
@@ -493,6 +443,7 @@ struct RichTextEditor: NSViewRepresentable {
     let isEditable: Bool
     let bottomInset: CGFloat
     let appearance: MarkdownAppearance
+    let sync: SplitScrollSync?
 
     static var systemFont: FormatFont {
         NSFont.systemFont(ofSize: NSFont.systemFontSize)
@@ -565,7 +516,18 @@ struct RichTextEditor: NSViewRepresentable {
             context.coordinator.restyle()
         }
 
+        context.coordinator.sync = sync
+        sync?.attach(scrollView, as: .editor)
+
         return scrollView
+    }
+
+    static func dismantleNSView(
+        _ scrollView: NSScrollView,
+        coordinator: Coordinator
+    ) {
+        coordinator.sync?.detach(scrollView)
+        coordinator.sync = nil
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
@@ -573,6 +535,12 @@ struct RichTextEditor: NSViewRepresentable {
             return
         }
         context.coordinator.bindings = self
+
+        if context.coordinator.sync !== sync {
+            context.coordinator.sync?.detach(scrollView)
+            context.coordinator.sync = sync
+            sync?.attach(scrollView, as: .editor)
+        }
 
         if context.coordinator.styledAppearance != appearance {
             DispatchQueue.main.async {
@@ -615,6 +583,7 @@ struct RichTextEditor: NSViewRepresentable {
         var bindings: RichTextEditor?
         var isProgrammaticChange = false
         var styledAppearance: MarkdownAppearance?
+        var sync: SplitScrollSync?
 
         /// Re-applies markdown attributes without touching a single character.
         func restyle() {
@@ -733,6 +702,7 @@ struct RichTextEditor: UIViewRepresentable {
     let isEditable: Bool
     let bottomInset: CGFloat
     let appearance: MarkdownAppearance
+    let sync: SplitScrollSync?
 
     static var systemFont: FormatFont {
         UIFont.preferredFont(forTextStyle: .body)
@@ -791,12 +761,29 @@ struct RichTextEditor: UIViewRepresentable {
             context.coordinator.restyle()
         }
 
+        context.coordinator.sync = sync
+        sync?.attach(textView, as: .editor)
+
         return textView
+    }
+
+    static func dismantleUIView(
+        _ textView: UITextView,
+        coordinator: Coordinator
+    ) {
+        coordinator.sync?.detach(textView)
+        coordinator.sync = nil
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
         context.coordinator.textView = textView
         context.coordinator.bindings = self
+
+        if context.coordinator.sync !== sync {
+            context.coordinator.sync?.detach(textView)
+            context.coordinator.sync = sync
+            sync?.attach(textView, as: .editor)
+        }
 
         if context.coordinator.styledAppearance != appearance {
             DispatchQueue.main.async {
@@ -838,6 +825,7 @@ struct RichTextEditor: UIViewRepresentable {
         var bindings: RichTextEditor?
         var isProgrammaticChange = false
         var styledAppearance: MarkdownAppearance?
+        var sync: SplitScrollSync?
 
         /// Re-applies markdown attributes without touching a single character.
         func restyle() {
