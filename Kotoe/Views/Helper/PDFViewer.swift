@@ -41,12 +41,18 @@ struct PDFSideView: View {
     }
 
     private func load() async {
+        url = nil
+
         guard let fileName else {
             isLoading = false
             return
         }
 
-        url = await MediaStore.loadURL(named: fileName)
+        isLoading = true
+        let loaded = await MediaStore.loadURL(named: fileName)
+        guard !Task.isCancelled else { return }
+
+        url = loaded
         isLoading = false
     }
 }

@@ -18,7 +18,7 @@ struct StudyFinishedView: View {
     private var finishedMessage: String {
         String(
             localized: "studyView.finished.message",
-            defaultValue: "You reviewed all %lld cards in this round."
+            defaultValue: "You reviewed all \(total) cards in this round."
         )
     }
 

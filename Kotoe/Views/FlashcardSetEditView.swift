@@ -44,7 +44,7 @@ struct FlashcardSetEditView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
                         #if os(macOS)
-                        Text("Edit Set")
+                        Text("setEditView.header.editSet")
                             .font(.headline)
                         #endif
 
@@ -488,12 +488,12 @@ struct FlashcardSetEditView: View {
 
     /// Deletes the set and all of its cards, then dismisses the editor.
     private func deleteSet() {
-        guard let subject = flashcardSet.subject else { return }
+        let subject = flashcardSet.subject
 
         flashcardSet.removeMediaFiles()
         modelContext.delete(flashcardSet)
 
-        subject.modifiedAt = .now
+        subject?.modifiedAt = .now
 
         do {
             try modelContext.save()
@@ -721,7 +721,7 @@ private struct CardRow: View {
                     .fill(KotoeTheme.fieldBackground)
                     .frame(width: 28, height: 28)
 
-                Text("\(index + 1)")
+                Text(verbatim: "\(index + 1)")
                     .font(.caption2.weight(.bold))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
@@ -895,13 +895,13 @@ struct FlashcardEditorView: View {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 11, weight: .semibold))
 
-                Text("Edit Card")
+                Text("cardEditor.header.editCard")
                     .font(.headline)
             }
             .foregroundStyle(.primary)
         }
         .buttonStyle(.plain)
-        .help("Back to set")
+        .help("cardEditor.header.backHelp")
     }
     #endif
 
@@ -1087,9 +1087,7 @@ private struct SideEditorSection: View {
             side.contentType = .drawing
         case .file:
             // A PDF stays a PDF; anything else starts as an image.
-            if side.contentType != .pdf {
-                side.contentType = .image
-            }
+            side.contentType = side.fileContentType
         }
 
         side.modifiedAt = .now

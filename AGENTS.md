@@ -471,7 +471,8 @@ card row opens the editor for an existing one.
   Formatting is applied as **attributes only**: the editor never replaces
   characters, so the caret, selection, undo stack, autocorrection and input
   methods behave natively. Markdown markers stay visible but dimmed.
-  Return continues a list (and ends it on an empty item). There are no
+  Return continues a list (and ends it on an empty item). Smart dashes are
+  off so `---` can be typed. There are no
   formatting buttons.
 - Every content field shows a grey `info.circle` at its top trailing corner
   with no background. It opens `RichTextStyleGuideView`, which demonstrates
@@ -493,7 +494,11 @@ card row opens the editor for an existing one.
 - The file picker accepts every file (`UTType.item`); `ImportedFile` decides
   what the file becomes — a PDF stays a PDF, an image is stored as an image,
   a text file becomes text. Picking a file also switches the side's
-  `contentType` to match.
+  `contentType` to match. `CGImageSourceCreateWithData` returns a source for
+  any bytes, so an image is only accepted when the source has a type and at
+  least one frame. Switching a side's type keeps its media file, so
+  `hasImage` / `hasDrawing` / `hasPDF` also compare the file extension
+  (`.pkdrawing`, `.pdf`, anything else is an image) with the content type.
 - The file tab keeps the native gallery picker (`PhotosPicker`) next to the
   file picker. Images are decoded with ImageIO, so every format the system
   supports (JPEG, PNG, HEIC, GIF, TIFF, WebP) renders.
@@ -535,7 +540,12 @@ card row opens the editor for an existing one.
 - In Guess mode the same marking hints stay below the card before and after the
   reveal, so marking works with a mouse in either state. Correct counts the
   card as learned, Incorrect re-queues it. In Type mode the answer field is
-  replaced by a Next Card button (Escape) while the verdict lingers.
+  replaced by a Next Card button (Escape) while the verdict lingers. That
+  button only ends the verdict early with the judged result; the mark is
+  already recorded, so it never records a second one. Delayed callbacks (the
+  fly-off and the verdict timer) carry the session's `generation` and are
+  ignored after a restart. The judged verdict (`lastTypedCorrect`) is not
+  shown anywhere yet.
 - Every mark updates `isKnown` / `lastReviewedAt`, appends a
   `FlashcardReview`, and saves the context so the state survives relaunch
   and syncs through iCloud.
@@ -590,6 +600,9 @@ in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
   arrive on another device before its file. Views load media through
   `MediaStore.loadData(named:)` / `loadURL(named:)`, which wait for the
   iCloud download; `hasFile(named:)` also counts `.name.icloud` placeholders.
+  `url(named:)` looks in the iCloud folder and the local folder before falling
+  back to the current folder, so files written while iCloud Drive was
+  unavailable stay reachable.
 - The iCloud Documents capability is declared in `Kōtoe.entitlements`
   (`CloudDocuments` + `ubiquity-container-identifiers`) and
   `NSUbiquitousContainers` in `Info.plist`. The document scope is public, so
@@ -732,6 +745,9 @@ text — do not paste it into Swift code or the string catalog.
   `com.apple.security.files.user-selected.read-only`, and imports must call
   `startAccessingSecurityScopedResource()` before reading and balance it with
   `stopAccessingSecurityScopedResource()`.
+- On macOS the list-continuation edit goes through `shouldChangeText` /
+  `didChangeText`; `replaceCharacters` alone skips the delegate and binding, so
+  the next view update would revert it.
 - `MarkdownFormatter` has two entry points and they are not
   interchangeable: `styledSource` keeps every character (only attributes
   change) and is for the editor; `rendered` removes markers and is for display.

@@ -63,7 +63,11 @@ enum ImportedFile {
             return .imported(.pdf(data))
         }
 
-        if CGImageSourceCreateWithData(data as CFData, nil) != nil {
+        // ImageIO returns a source even for data it cannot decode, so the
+        // source must also report a type and at least one image.
+        if let source = CGImageSourceCreateWithData(data as CFData, nil),
+           CGImageSourceGetType(source) != nil,
+           CGImageSourceGetCount(source) > 0 {
             return .imported(.image(data))
         }
 

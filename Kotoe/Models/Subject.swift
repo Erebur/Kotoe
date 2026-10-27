@@ -1,6 +1,6 @@
 //
 //  Subject.swift
-//  Flash
+//  Kōtoe
 //
 //  Created by Simon Weber on 19.10.26.
 //

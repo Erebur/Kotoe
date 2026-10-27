@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  Flash
+//  Kōtoe
 //
 //  Created by Simon Weber on 18.10.26.
 //

@@ -23,9 +23,12 @@ struct CardImportView: View {
     @State private var showingFileImporter = false
     @FocusState private var isEditorFocused: Bool
 
-    private var parsed: TextCardImporter.ParsedCards {
-        TextCardImporter.parse(text)
-    }
+    /// Parsed once per text change instead of on every access, so a large
+    /// paste does not slow down each render.
+    @State private var parsed = TextCardImporter.ParsedCards(
+        cards: [],
+        separator: .none
+    )
 
     private var cards: [TextCardImporter.Card] {
         parsed.cards
@@ -39,6 +42,9 @@ struct CardImportView: View {
             footer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onChange(of: text) {
+            parsed = TextCardImporter.parse(text)
+        }
         .fileImporter(
             isPresented: $showingFileImporter,
             allowedContentTypes: [

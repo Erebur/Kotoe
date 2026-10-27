@@ -184,7 +184,12 @@ struct StudyView: View {
     // MARK: - Study
 
     private func studyContent(for card: Flashcard) -> some View {
-        GeometryReader { proxy in
+        // A card's fly-off finishes after a delay. Capturing the generation
+        // lets `answer` ignore a callback from a session that was restarted
+        // in the meantime.
+        let cardGeneration = generation
+
+        return GeometryReader { proxy in
             VStack(spacing: 18) {
                 StudyProgressCard(
                     known: known,
@@ -206,7 +211,11 @@ struct StudyView: View {
                     ) { flipped in
                         isFlipped = flipped
                     } onAnswer: { correct in
-                        answer(correct: correct)
+                        answer(
+                            correct: correct,
+                            card: card,
+                            generation: cardGeneration
+                        )
                     }
                     .id("\(card.id.uuidString)-\(generation)")
                     .transition(
@@ -238,7 +247,11 @@ struct StudyView: View {
                     lastTypedCorrect: lastTypedCorrect,
                     tint: tint,
                     onNext: {
-                        mark(correct: true)
+                        if sessionMode == .type {
+                            advanceTypedCard()
+                        } else {
+                            mark(correct: true)
+                        }
                     },
                     onIncorrect: {
                         mark(correct: false)
@@ -307,8 +320,11 @@ struct StudyView: View {
         exitSignal += 1
     }
 
-    private func answer(correct: Bool) {
-        guard let card = queue.first else { return }
+    private func answer(correct: Bool, card: Flashcard, generation: Int) {
+        guard
+            generation == self.generation,
+            queue.first?.id == card.id
+        else { return }
 
         isMarking = false
 
@@ -324,7 +340,7 @@ struct StudyView: View {
 
             // A new generation gives the incoming card a fresh, unflipped
             // state without flipping the outgoing card back while it leaves.
-            generation += 1
+            self.generation += 1
             isFlipped = false
             typedAnswer = NSAttributedString()
             // A manual advance cancels the pending automatic verdict step.
@@ -337,9 +353,12 @@ struct StudyView: View {
     /// In typing mode the answer is judged automatically once it has been
     /// typed.
     private func submitTypedAnswer() {
-        guard sessionMode == .type, !isFlipped, !queue.isEmpty else { return }
+        guard
+            sessionMode == .type,
+            !isFlipped,
+            let card = queue.first
+        else { return }
 
-        let card = queue.first!
         let expected = MarkdownFormatter.plainText(
             from: card.back?.plainText ?? ""
         )
@@ -363,13 +382,38 @@ struct StudyView: View {
         // Record the mark and show the outcome for a moment before moving on.
         record(correct, for: card)
 
+        let cardGeneration = generation
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            finishTypedCard(correct: correct, card: card)
+            finishTypedCard(
+                correct: correct,
+                card: card,
+                generation: cardGeneration
+            )
         }
     }
 
-    private func finishTypedCard(correct: Bool, card: Flashcard) {
-        guard lastTypedCard?.id == card.id else { return }
+    /// The Next button ends the verdict early. The mark was already recorded
+    /// when the answer was judged, so this only moves the queue on.
+    private func advanceTypedCard() {
+        guard let card = lastTypedCard else { return }
+
+        finishTypedCard(
+            correct: lastTypedCorrect,
+            card: card,
+            generation: generation
+        )
+    }
+
+    private func finishTypedCard(
+        correct: Bool,
+        card: Flashcard,
+        generation: Int
+    ) {
+        guard
+            generation == self.generation,
+            lastTypedCard?.id == card.id,
+            queue.first?.id == card.id
+        else { return }
 
         withAnimation(.snappy(duration: 0.36)) {
             queue.removeFirst()
@@ -381,7 +425,7 @@ struct StudyView: View {
                 queue.append(card)
             }
 
-            generation += 1
+            self.generation += 1
             isFlipped = false
             typedAnswer = NSAttributedString()
             lastTypedCard = nil

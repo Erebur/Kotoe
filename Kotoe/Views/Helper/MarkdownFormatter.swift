@@ -188,7 +188,10 @@ enum MarkdownFormatter {
         highlightingCode: Bool = true
     ) -> NSAttributedString {
         let output = NSMutableAttributedString()
-        let rawLines = text.components(separatedBy: "\n")
+        let rawLines = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .components(separatedBy: "\n")
 
         var inFence = false
         var fenceLanguage: String?
@@ -300,7 +303,7 @@ enum MarkdownFormatter {
 #if os(macOS)
         NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)
 #else
-        UIFont.systemFont(ofSize: font.pointSize, weight: .bold)
+        withTrait(.traitBold, font)
 #endif
     }
 
@@ -316,9 +319,25 @@ enum MarkdownFormatter {
 #if os(macOS)
         NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
 #else
-        UIFont.italicSystemFont(ofSize: font.pointSize)
+        withTrait(.traitItalic, font)
 #endif
     }
+
+#if !os(macOS)
+    /// Adds a trait while keeping the font's other traits and design, so bold
+    /// and italic combine and a monospaced font stays monospaced.
+    private static func withTrait(
+        _ trait: UIFontDescriptor.SymbolicTraits,
+        _ font: UIFont
+    ) -> UIFont {
+        let traits = font.fontDescriptor.symbolicTraits.union(trait)
+
+        guard let descriptor = font.fontDescriptor.withSymbolicTraits(traits)
+        else { return font }
+
+        return UIFont(descriptor: descriptor, size: font.pointSize)
+    }
+#endif
 
     private static func monospacedFont(_ font: FormatFont) -> FormatFont {
 #if os(macOS)
@@ -442,6 +461,10 @@ enum MarkdownFormatter {
                         location: contentRange.location,
                         length: marker
                     )
+                )
+                // A `*` bullet must not open an italic span.
+                verbatimRanges.append(
+                    NSRange(location: contentRange.location, length: marker)
                 )
                 output.addAttribute(
                     .paragraphStyle,

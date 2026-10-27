@@ -74,7 +74,16 @@ enum MediaStore {
     // MARK: - URLs
 
     static func url(named name: String) -> URL {
-        directory.appendingPathComponent(name)
+        // A file saved while iCloud Drive was unavailable lives in the local
+        // folder, so look there too before assuming the current folder.
+        for folder in [iCloudDirectory, localDirectory].compactMap({ $0 }) {
+            let candidate = folder.appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+        }
+
+        return directory.appendingPathComponent(name)
     }
 
     // MARK: - Writing
@@ -133,8 +142,8 @@ enum MediaStore {
 
     // MARK: - Reading
 
-    /// Number of media files currently on this device (including files that
-    /// are still only present as iCloud placeholders).
+    /// Whether a media file exists on this device, including a file that is
+    /// still only present as an iCloud placeholder.
     static func hasFile(named name: String) -> Bool {
         let target = url(named: name)
         if FileManager.default.fileExists(atPath: target.path) {
@@ -143,7 +152,10 @@ enum MediaStore {
 
         // A file that has not been downloaded yet is represented by a
         // `.name.icloud` placeholder in the same folder.
-        let placeholder = directory.appendingPathComponent(".\(name).icloud")
+        guard let iCloudDirectory else { return false }
+
+        let placeholder = iCloudDirectory
+            .appendingPathComponent(".\(name).icloud")
         return FileManager.default.fileExists(atPath: placeholder.path)
     }
 

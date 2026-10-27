@@ -1,6 +1,6 @@
 //
 //  FlashcardSide.swift
-//  Flash
+//  Kōtoe
 //
 //  Created by Simon Weber on 19.10.26.
 //
@@ -179,21 +179,52 @@ final class FlashcardSide {
 
 extension FlashcardSide {
 
+    /// Kind of file `mediaFileName` points to, taken from its extension.
+    /// Switching a side's content type keeps the file, so the type alone
+    /// cannot tell an image from a drawing or a PDF.
+    private enum MediaKind {
+        case image
+        case drawing
+        case pdf
+    }
+
+    private var mediaKind: MediaKind? {
+        guard let mediaFileName else { return nil }
+
+        switch (mediaFileName as NSString).pathExtension.lowercased() {
+        case "pkdrawing": return .drawing
+        case "pdf": return .pdf
+        default: return .image
+        }
+    }
+
+    /// Whether the side's media file is the content type it is set to.
+    private var contentTypeMatchesMedia: Bool {
+        switch (contentType, mediaKind) {
+        case (.image, .image), (.drawing, .drawing), (.pdf, .pdf): return true
+        default: return false
+        }
+    }
+
     /// Whether image content exists, including an iCloud placeholder that has
     /// not been downloaded yet.
     var hasImage: Bool {
         guard contentType == .image else { return false }
 
         if let mediaFileName {
-            return MediaStore.hasFile(named: mediaFileName)
+            return contentTypeMatchesMedia
+                && MediaStore.hasFile(named: mediaFileName)
         }
         return imageData != nil
     }
 
     /// Whether drawing content exists, including an iCloud placeholder.
     var hasDrawing: Bool {
+        guard contentType == .drawing else { return false }
+
         if let mediaFileName {
-            return MediaStore.hasFile(named: mediaFileName)
+            return contentTypeMatchesMedia
+                && MediaStore.hasFile(named: mediaFileName)
         }
         return drawingData != nil
     }
@@ -201,7 +232,14 @@ extension FlashcardSide {
     /// Whether PDF content exists, including an iCloud placeholder.
     var hasPDF: Bool {
         guard contentType == .pdf, let mediaFileName else { return false }
-        return MediaStore.hasFile(named: mediaFileName)
+        return contentTypeMatchesMedia
+            && MediaStore.hasFile(named: mediaFileName)
+    }
+
+    /// The content type a file picker should switch the side to: a PDF stays
+    /// a PDF and everything else starts as an image.
+    var fileContentType: FlashcardContentType {
+        mediaKind == .pdf ? .pdf : .image
     }
 
     /// Image bytes already on this device, falling back to legacy inline data.

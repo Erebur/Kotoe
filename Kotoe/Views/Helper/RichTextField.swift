@@ -89,7 +89,7 @@ struct RichTextField: View {
                 .simultaneousGesture(
                     TapGesture().onEnded {
                         #if os(iOS)
-                        if isNarrow {
+                        if isNarrow && isEditable {
                             tappedToEdit = true
                             isFocused = true
                         }
@@ -478,8 +478,20 @@ enum MarkdownListContinuation {
         let isTask = group(4) != nil
         let content = group(6) ?? ""
 
-        // Pressing Return on an empty item ends the list.
-        if content.trimmingCharacters(in: .whitespaces).isEmpty {
+        // Pressing Return on an empty item ends the list. Text after the
+        // caret means the item is split instead.
+        let restOfLine = text.substring(
+            with: NSRange(
+                location: selection.location,
+                length: lineRange.upperBound - selection.location
+            )
+        )
+        let hasTextAfterCaret = !restOfLine
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
+
+        if content.trimmingCharacters(in: .whitespaces).isEmpty,
+           !hasTextAfterCaret {
             return Edit(
                 range: NSRange(location: lineStart, length: prefixLength),
                 replacement: ""
@@ -490,7 +502,8 @@ enum MarkdownListContinuation {
         if isTask {
             nextMarker = "- [ ]"
         } else if marker.hasSuffix("."),
-                  let number = Int(marker.dropLast()) {
+                  let number = Int(marker.dropLast()),
+                  number < Int.max {
             nextMarker = "\(number + 1)."
         } else {
             nextMarker = marker
@@ -561,7 +574,7 @@ struct RichTextEditor: NSViewRepresentable {
         textView.usesFontPanel = false
         textView.allowsUndo = true
         textView.isAutomaticQuoteSubstitutionEnabled = true
-        textView.isAutomaticDashSubstitutionEnabled = true
+        textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = true
         textView.isAutomaticSpellingCorrectionEnabled = true
         textView.isContinuousSpellCheckingEnabled = true
@@ -753,6 +766,13 @@ struct RichTextEditor: NSViewRepresentable {
                 selection: selection
             ) else { return false }
 
+            // `replaceCharacters` alone skips the delegate, undo and binding
+            // updates, so the edit would be lost on the next view update.
+            guard textView.shouldChangeText(
+                in: edit.range,
+                replacementString: edit.replacement
+            ) else { return true }
+
             textView.replaceCharacters(
                 in: edit.range,
                 with: edit.replacement
@@ -763,6 +783,7 @@ struct RichTextEditor: NSViewRepresentable {
                     at: edit.range.location
                 )
             )
+            textView.didChangeText()
             return true
         }
     }
@@ -823,7 +844,7 @@ struct RichTextEditor: UIViewRepresentable {
         textView.autocorrectionType = .default
         textView.spellCheckingType = .default
         textView.smartQuotesType = .default
-        textView.smartDashesType = .default
+        textView.smartDashesType = .no
         textView.smartInsertDeleteType = .default
         textView.allowsEditingTextAttributes = true
         textView.typingAttributes = MarkdownFormatter.typingAttributes(

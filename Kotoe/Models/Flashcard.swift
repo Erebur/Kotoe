@@ -1,6 +1,6 @@
 //
-//  FlashcardModels.swift
-//  Flash
+//  Flashcard.swift
+//  Kōtoe
 //
 //  Created by Simon Weber on 19.10.26.
 //

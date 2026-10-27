@@ -138,9 +138,13 @@ final class CloudKitSyncMonitor {
 
     // MARK: - Observation
 
-    /// The app owns the only instance, so the token is kept for the lifetime
-    /// of the process rather than removed in `deinit`.
     @ObservationIgnored private var observer: NSObjectProtocol?
+
+    deinit {
+        if let observer {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
 
     init(failures: [SyncFailure] = []) {
         self.failures = failures
@@ -225,8 +229,15 @@ final class CloudKitSyncMonitor {
 
         case .setup:
             // Setup succeeding only means sync is available, not that any
-            // data moved, so it leaves the reported state alone.
-            break
+            // data moved. It must still end the "syncing" state its start
+            // event set, or the footer would show it until the next import
+            // or export.
+            if case .syncing = state {
+                let lastSync = [lastImportedAt, lastExportedAt]
+                    .compactMap { $0 }
+                    .max()
+                state = lastSync.map { .synced($0) } ?? .idle
+            }
 
         @unknown default:
             break
@@ -241,10 +252,13 @@ final class CloudKitSyncMonitor {
     }
 
     private func record(_ failure: SyncFailure) {
-        if var latest = failures.first, latest.matches(failure) {
-            latest.lastSeenAt = failure.lastSeenAt
-            latest.count += 1
-            failures[0] = latest
+        // Group with an earlier identical failure, not only the newest one,
+        // so alternating import and export failures do not fill the log.
+        if let index = failures.firstIndex(where: { $0.matches(failure) }) {
+            var existing = failures.remove(at: index)
+            existing.lastSeenAt = failure.lastSeenAt
+            existing.count += 1
+            failures.insert(existing, at: 0)
             return
         }
 
