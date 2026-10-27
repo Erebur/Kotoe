@@ -165,6 +165,8 @@ enum DemoScenes {
                         showsHint: true,
                         allowsSwipeAnswer: true,
                         flipSignal: 0,
+                        exitSignal: 0,
+                        exitCorrect: true,
                         onFlipChanged: { _ in },
                         onAnswer: { _ in }
                     )
@@ -276,11 +278,7 @@ private struct DemoAppearanceView: View {
     var body: some View {
         AppearanceEditor(
             title: "contentView.appearanceEditor.title",
-            subtitle: String(
-                localized: "contentView.appearanceEditor.subtitle",
-                defaultValue:
-                    "Choose the icon and color that represent \(subject.name)."
-            ),
+            subtitle: "contentView.appearanceEditor.subtitle",
             symbols: KotoeTheme.subjectSymbols,
             defaultSymbol: KotoeTheme.style(for: subject.name).symbol,
             defaultTintIndex: subject.effectiveTintIndex,
