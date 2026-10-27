@@ -55,7 +55,8 @@ struct StudyControls: View {
             minHeight: 34,
             maxHeight: 72,
             submitsOnReturn: true,
-            onSubmit: onSubmit
+            onSubmit: onSubmit,
+            showsStyleControls: false
         )
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }

@@ -306,7 +306,8 @@ struct FlashcardSetEditView: View {
                 attributedText: notesBinding,
                 tint: flashcardSet.style.tint,
                 minHeight: 80,
-                maxHeight: 260
+                maxHeight: 260,
+                displayMode: $flashcardSet.notesDisplayMode
             )
         }
         .cardSurface(padding: 18)
@@ -1128,7 +1129,8 @@ private struct SideEditorSection: View {
             attributedText: textBinding,
             tint: tint,
             minHeight: 100,
-            maxHeight: 400
+            maxHeight: 400,
+            displayMode: $side.displayMode
         )
     }
 

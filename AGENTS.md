@@ -304,6 +304,7 @@ Kotoe/
     Flashcard.swift              one card; front/back accessors, study state
     FlashcardSide.swift          content payload + PencilKit helpers
     FlashcardReview.swift        one recorded study mark (history)
+    RichTextDisplayMode.swift    editor / split / preview choice stored per field
   Views/
     FlashcardSetEditView.swift   set editor, card editor, side editor
     CardImportView.swift         bulk import sheet: paste text, preview, import
@@ -319,10 +320,13 @@ Kotoe/
       PDFViewer.swift            PDFKit wrapper + full document viewer
       RichTextField.swift        cross-platform markdown source editor; styles
                                   attributes only (never replaces characters),
-                                  continues lists on Return, no formatting buttons
+                                  continues lists on Return, info button and
+                                  editor/split/preview switch, no formatting
+                                  buttons
       MarkdownFormatter.swift    markdown → NSAttributedString converter; styles
                                   editor source and renders card output (lists,
                                   code, links, LaTeX via SwiftMath)
+      RichTextStyleGuideView.swift  style guide sheet with a split style sample
       RichTextLabel.swift        read-only native label for rendered attributed
                                   text, including inline LaTeX images
       If.swift                   shared `if` view modifier
@@ -370,6 +374,14 @@ Subject ──< FlashcardSet ──< Flashcard ─┬─< FlashcardSide (role: f
 - `Subject` and `FlashcardSet` store rich-text notes in `notesRichTextData`
   (RTF). Read/write through the `attributedNotes` computed property, which also
   keeps the legacy `notes` string in sync. Edit with `RichTextField`.
+- `Subject` and `FlashcardSet` store `notesDisplayMode`, and `FlashcardSide`
+  stores `displayMode` (`RichTextDisplayMode`: `.editor`, `.split`,
+  `.preview`). The preview switch writes that value, so the chosen mode is
+  remembered per field and syncs through CloudKit with the record. The
+  persisted attributes are the optional `notesDisplayModeStorage` /
+  `displayModeStorage`; `nil` means `.editor`. Keep the storage optional: a
+  non-optional enum attribute crashes its generated getter on a store created
+  before the field existed, because the migrated value is `nil`.
 - `isArchived` and `position` exist on all levels. `sortedFlashcardSets` and
   `sortedFlashcards` filter archived items and sort by `position`. There is no
   archive UI yet, but queries and computed properties already respect the flag.
@@ -420,6 +432,12 @@ card row opens the editor for an existing one.
   methods behave natively. Markdown markers stay visible but dimmed.
   Return continues a list (and ends it on an empty item). There are no
   formatting buttons.
+- Every content field shows a grey `info.circle` at its top trailing corner
+  with no background. It opens `RichTextStyleGuideView`, which demonstrates
+  every supported style in a read-only split field. A three-way switch at the
+  bottom trailing corner toggles editor, split, and rendered preview; the mode
+  is stored on the owning model (see **Data model**). Transient inputs such as
+  the typed study answer keep `showsStyleControls` off.
 - The file picker accepts every file (`UTType.item`); `ImportedFile` decides
   what the file becomes — a PDF stays a PDF, an image is stored as an image,
   a text file becomes text. Picking a file also switches the side's
@@ -666,6 +684,14 @@ text — do not paste it into Swift code or the string catalog.
   `NSTextAttachment`. `RichTextLabel` wraps `UILabel`/`NSTextField` because
   SwiftUI `Text` drops attachments. The math image is rasterized, so it does
   not follow Dynamic Type after rendering.
+- The rich text field's split view is side by side on macOS and stacked on
+  iOS. In preview the editor stays mounted but invisible so its measured
+  height keeps sizing the field; switching to preview also resigns first
+  responder so the keyboard does not cover the mode switch. The field keeps
+  one height in every mode so the layout does not jump, which means the split
+  panes scroll instead of growing the field. The style guide sheet gives its
+  sample field `fillsHeight` so it uses the whole sheet, and the info and
+  mode-switch buttons show the pointing-hand cursor on macOS.
 
 ## Where to change what
 
@@ -681,6 +707,9 @@ text — do not paste it into Swift code or the string catalog.
 - Change the editor's typing behavior (list continuation, focus, sizing) or
   the rich text label: `Views/Helper/RichTextField.swift` and
   `Views/Helper/RichTextLabel.swift`.
+- Change the style guide sheet or the editor/split/preview switch:
+  `Views/Helper/RichTextStyleGuideView.swift` and
+  `Views/Helper/RichTextField.swift`.
 - Change how bulk imports are parsed (separator, escaping):
   `Import/TextCardImporter.swift`.
 - Change the import sheet (paste, file, preview): `Views/CardImportView.swift`.

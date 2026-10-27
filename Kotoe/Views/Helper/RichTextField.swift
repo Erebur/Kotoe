@@ -49,27 +49,45 @@ struct RichTextField: View {
     var submitsOnReturn: Bool = false
     var onSubmit: () -> Void = {}
 
+    /// Shows the style guide button and, when `displayMode` is set, the
+    /// editor / split / preview switch. Transient inputs turn both off.
+    var showsStyleControls: Bool = true
+
+    /// The field's saved display mode. `nil` hides the switch and keeps the
+    /// field in editor mode.
+    var displayMode: Binding<RichTextDisplayMode>? = nil
+
+    /// Read-only fields are used by the style guide sheet.
+    var isEditable: Bool = true
+
+    /// Fill the height the parent offers instead of sizing to the text. Used
+    /// by the style guide sheet so its sample uses the whole sheet.
+    var fillsHeight: Bool = false
+
     @State private var isFocused = false
     @State private var editorHeight: CGFloat = 0
+    @State private var splitEditorHeight: CGFloat = 0
+    @State private var showsStyleGuide = false
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            RichTextEditor(
-                attributedText: $attributedText,
-                isFocused: $isFocused,
-                height: $editorHeight,
-                submitsOnReturn: submitsOnReturn,
-                onSubmit: onSubmit
-            )
-            .frame(height: clampedHeight)
+        VStack(spacing: 0) {
+            ZStack(alignment: .topTrailing) {
+                content
+                    .frame(height: fillsHeight ? nil : contentHeight)
 
-            if attributedText.string.isEmpty && !isFocused {
-                Text(placeholder)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 13)
-                    .padding(.vertical, 12)
-                    .allowsHitTesting(false)
+                if attributedText.string.isEmpty && !isFocused {
+                    placeholderText
+                }
+
+                if showsStyleControls {
+                    styleGuideButton
+                        .padding(.top, 7)
+                        .padding(.trailing, 8)
+                }
+            }
+
+            if showsStyleControls, displayMode != nil {
+                modeFooter
             }
         }
         .background(
@@ -84,10 +102,242 @@ struct RichTextField: View {
                 )
         )
         .animation(.easeOut(duration: 0.15), value: isFocused)
+        .sheet(isPresented: $showsStyleGuide) {
+            RichTextStyleGuideView()
+        }
+        .onChange(of: mode) { _, newMode in
+            if newMode == .preview {
+                dismissKeyboard()
+            }
+        }
     }
 
-    private var clampedHeight: CGFloat {
+    private var mode: RichTextDisplayMode {
+        displayMode?.wrappedValue ?? .editor
+    }
+
+    // MARK: Content
+
+    @ViewBuilder
+    private var content: some View {
+        switch mode {
+        case .editor:
+            editor(height: $editorHeight)
+
+        case .preview:
+            // The editor stays mounted but invisible so its measured height
+            // keeps sizing the field while the preview is shown.
+            ZStack {
+                measuringEditor
+
+                previewPane
+            }
+
+        case .split:
+            // The visible editor is only half as wide and would measure more
+            // lines; the hidden full-width editor keeps every mode the same
+            // height.
+            ZStack {
+                measuringEditor
+
+                splitContent
+            }
+        }
+    }
+
+    private func editor(
+        height: Binding<CGFloat>,
+        editable: Bool? = nil
+    ) -> some View {
+        RichTextEditor(
+            attributedText: $attributedText,
+            isFocused: $isFocused,
+            height: height,
+            submitsOnReturn: submitsOnReturn,
+            onSubmit: onSubmit,
+            isEditable: editable ?? isEditable
+        )
+        // Reserve room for the info button without shifting the text's left
+        // edge; the text views inset both sides equally.
+        .padding(.trailing, showsStyleControls ? 23 : 0)
+    }
+
+    /// Invisible, read-only full-width editor used only to measure the text
+    /// height.
+    private var measuringEditor: some View {
+        editor(height: $editorHeight, editable: false)
+            .opacity(0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var splitContent: some View {
+        #if os(macOS)
+        HStack(spacing: 0) {
+            editor(height: $splitEditorHeight)
+            Divider().opacity(0.5)
+            previewPane
+        }
+        #else
+        VStack(spacing: 0) {
+            editor(height: $splitEditorHeight)
+            Divider().opacity(0.5)
+            previewPane
+        }
+        #endif
+    }
+
+    private var previewPane: some View {
+        ScrollView {
+            RichTextLabel(
+                attributedText: renderedPreview,
+                alignment: .natural
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 10)
+            .padding(.leading, 13)
+            .padding(.trailing, showsStyleControls ? 34 : 13)
+            .padding(.bottom, 10)
+        }
+    }
+
+    private var renderedPreview: NSAttributedString {
+        MarkdownFormatter.rendered(
+            attributedText.string,
+            style: MarkdownFormatter.Style(
+                baseFont: RichTextEditor.systemFont,
+                alignment: .natural,
+                rendersMath: true
+            )
+        )
+    }
+
+    // MARK: Controls
+
+    private var modeFooter: some View {
+        HStack {
+            Spacer()
+
+            if let displayMode {
+                RichTextModeSwitch(mode: displayMode)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.bottom, 7)
+    }
+
+    private var styleGuideButton: some View {
+        Button {
+            showsStyleGuide = true
+        } label: {
+            Image(systemName: "info.circle")
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(.secondary)
+                .frame(width: 20, height: 20)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointingHandCursor()
+        .help("shared.richText.styleGuide.open")
+        .accessibilityLabel("shared.richText.styleGuide.open")
+    }
+
+    private var placeholderText: some View {
+        Text(placeholder)
+            .font(.body)
+            .foregroundStyle(.secondary)
+            .padding(.leading, 13)
+            .padding(.trailing, showsStyleControls ? 36 : 13)
+            .padding(.vertical, 12)
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: .infinity,
+                alignment: .topLeading
+            )
+            .allowsHitTesting(false)
+    }
+
+    // MARK: Layout
+
+    private var contentHeight: CGFloat {
         min(max(editorHeight, minHeight), maxHeight)
+    }
+
+    private func dismissKeyboard() {
+        #if os(macOS)
+        NSApp.keyWindow?.makeFirstResponder(nil)
+        #else
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+        #endif
+    }
+}
+
+// MARK: - Display mode switch
+
+/// Compact three-way switch at the bottom trailing corner of a field.
+private struct RichTextModeSwitch: View {
+
+    @Binding var mode: RichTextDisplayMode
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(RichTextDisplayMode.allCases, id: \.self) { option in
+                Button {
+                    mode = option
+                } label: {
+                    Image(systemName: option.symbolName)
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: 28, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .pointingHandCursor()
+                .foregroundStyle(
+                    mode == option ? Color.primary : Color.secondary
+                )
+                .background(
+                    mode == option ? Color.primary.opacity(0.09) : .clear,
+                    in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                )
+                .help(option.label)
+                .accessibilityLabel(option.label)
+                .accessibilityAddTraits(
+                    mode == option ? .isSelected : []
+                )
+            }
+        }
+        .padding(2)
+        .background(
+            Color.primary.opacity(0.05),
+            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("shared.richText.displayMode")
+    }
+}
+
+extension RichTextDisplayMode {
+
+    var symbolName: String {
+        switch self {
+        case .editor: return "pencil.line"
+        case .split: return "rectangle.split.2x1"
+        case .preview: return "eye"
+        }
+    }
+
+    var label: LocalizedStringKey {
+        switch self {
+        case .editor: return "shared.richText.displayMode.editor"
+        case .split: return "shared.richText.displayMode.split"
+        case .preview: return "shared.richText.displayMode.preview"
+        }
     }
 }
 
@@ -182,6 +432,7 @@ struct RichTextEditor: NSViewRepresentable {
     @Binding var height: CGFloat
     let submitsOnReturn: Bool
     let onSubmit: () -> Void
+    let isEditable: Bool
 
     static var systemFont: FormatFont {
         NSFont.systemFont(ofSize: NSFont.systemFontSize)
@@ -200,8 +451,8 @@ struct RichTextEditor: NSViewRepresentable {
 
         let textView = NSTextView()
         textView.isRichText = true
-        textView.isEditable = true
-        textView.isSelectable = true
+        textView.isEditable = isEditable
+        textView.isSelectable = isEditable
         textView.drawsBackground = false
         textView.backgroundColor = .clear
         textView.font = Self.systemFont
@@ -252,6 +503,9 @@ struct RichTextEditor: NSViewRepresentable {
             return
         }
         context.coordinator.bindings = self
+
+        textView.isEditable = isEditable
+        textView.isSelectable = isEditable
 
         if !context.coordinator.isProgrammaticChange {
             let current = textView.textStorage?.string ?? ""
@@ -392,6 +646,7 @@ struct RichTextEditor: UIViewRepresentable {
     @Binding var height: CGFloat
     let submitsOnReturn: Bool
     let onSubmit: () -> Void
+    let isEditable: Bool
 
     static var systemFont: FormatFont {
         UIFont.preferredFont(forTextStyle: .body)
@@ -405,6 +660,8 @@ struct RichTextEditor: UIViewRepresentable {
         let textView = UITextView()
         textView.backgroundColor = .clear
         textView.isScrollEnabled = true
+        textView.isEditable = isEditable
+        textView.isSelectable = isEditable
         textView.showsVerticalScrollIndicator = true
         textView.alwaysBounceVertical = false
         textView.textContainerInset = UIEdgeInsets(
@@ -445,6 +702,9 @@ struct RichTextEditor: UIViewRepresentable {
     func updateUIView(_ textView: UITextView, context: Context) {
         context.coordinator.textView = textView
         context.coordinator.bindings = self
+
+        textView.isEditable = isEditable
+        textView.isSelectable = isEditable
 
         if !context.coordinator.isProgrammaticChange {
             if textView.attributedText.string != attributedText.string {
@@ -618,7 +878,8 @@ extension NSAttributedString {
             placeholder: "shared.content.empty",
             attributedText: .constant(attributed),
             minHeight: 160,
-            maxHeight: 300
+            maxHeight: 300,
+            displayMode: .constant(.split)
         )
         .frame(width: 360)
 

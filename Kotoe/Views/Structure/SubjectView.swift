@@ -305,7 +305,8 @@ struct SubjectView: View {
                 attributedText: notesBinding,
                 tint: subject.style.tint,
                 minHeight: 80,
-                maxHeight: 260
+                maxHeight: 260,
+                displayMode: $subject.notesDisplayMode
             )
         }
         .cardSurface(padding: 18)

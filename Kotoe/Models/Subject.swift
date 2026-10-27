@@ -21,6 +21,18 @@ final class Subject {
     /// string in sync so existing readers keep working.
     var notesRichTextData: Data? = nil
 
+    /// Backing value of `notesDisplayMode`. Optional because stores created
+    /// before the field existed have no value for it; `nil` reads as
+    /// `.editor`.
+    var notesDisplayModeStorage: RichTextDisplayMode? = nil
+
+    /// How the notes field shows its content. Part of the record so the
+    /// choice is remembered per field and syncs through iCloud.
+    var notesDisplayMode: RichTextDisplayMode {
+        get { notesDisplayModeStorage ?? .editor }
+        set { notesDisplayModeStorage = newValue }
+    }
+
     var createdAt: Date = Date.now
     var lastAccessedAt: Date = Date.now
     var modifiedAt: Date = Date.now

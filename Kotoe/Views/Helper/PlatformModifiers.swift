@@ -122,4 +122,22 @@ extension View {
             .presentationDragIndicator(.visible)
         #endif
     }
+
+    /// Shows the pointing-hand cursor over custom icon buttons. A plain
+    /// SwiftUI button keeps the arrow cursor on the Mac.
+    @ViewBuilder
+    func pointingHandCursor() -> some View {
+        #if os(macOS)
+        self.onContinuousHover { phase in
+            switch phase {
+            case .active:
+                NSCursor.pointingHand.set()
+            case .ended:
+                NSCursor.arrow.set()
+            }
+        }
+        #else
+        self
+        #endif
+    }
 }

@@ -20,6 +20,17 @@ final class FlashcardSide {
     var contentType: FlashcardContentType =
         FlashcardContentType.richText
 
+    /// Backing value of `displayMode`. Optional because stores created before
+    /// the field existed have no value for it; `nil` reads as `.editor`.
+    var displayModeStorage: RichTextDisplayMode? = nil
+
+    /// How the text editor shows this side's content. Part of the record so
+    /// the choice is remembered per side and syncs through iCloud.
+    var displayMode: RichTextDisplayMode {
+        get { displayModeStorage ?? .editor }
+        set { displayModeStorage = newValue }
+    }
+
     // MARK: Content
 
     /// Rich text serialized as RTF or another chosen attributed-string format.
