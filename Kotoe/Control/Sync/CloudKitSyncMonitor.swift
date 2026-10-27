@@ -136,6 +136,10 @@ final class CloudKitSyncMonitor {
     /// the monitor usable in previews.
     private(set) var failures: [SyncFailure] = []
 
+    /// Operations whose latest attempt failed. A success only clears its own
+    /// operation, so a failing import stays visible while exports succeed.
+    @ObservationIgnored private var failingOperations: Set<SyncFailure.Operation> = []
+
     // MARK: - Observation
 
     @ObservationIgnored private var observer: NSObjectProtocol?
@@ -187,6 +191,12 @@ final class CloudKitSyncMonitor {
                 at: endDate
             )
 
+            // Unknown event types have no matching success event to clear
+            // them, so they are reported but never block the sync state.
+            if failure.operation != .other {
+                failingOperations.insert(failure.operation)
+            }
+
             record(failure)
             lastErrorDescription = failure.message
             state = .failed(failure.message)
@@ -217,15 +227,43 @@ final class CloudKitSyncMonitor {
         switch event.type {
         case .import:
             lastImportedAt = endDate
-            lastErrorDescription = nil
-            state = .synced(endDate)
             print("[CloudKit] import finished at \(endDate)")
 
         case .export:
             lastExportedAt = endDate
-            lastErrorDescription = nil
-            state = .synced(endDate)
             print("[CloudKit] export finished at \(endDate)")
+
+        case .setup:
+            break
+
+        @unknown default:
+            break
+        }
+
+        failingOperations.remove(Self.operation(for: event.type))
+        refreshState(lastSuccess: endDate, type: event.type)
+    }
+
+    /// Recomputes the reported state after an event finished. A success only
+    /// counts as "synced" when no operation is still failing; otherwise the
+    /// failure stays visible even though another operation just succeeded.
+    private func refreshState(
+        lastSuccess: Date,
+        type: NSPersistentCloudKitContainer.EventType
+    ) {
+        if let failure = failures.first(where: {
+            failingOperations.contains($0.operation)
+        }) {
+            lastErrorDescription = failure.message
+            state = .failed(failure.message)
+            return
+        }
+
+        lastErrorDescription = nil
+
+        switch type {
+        case .import, .export:
+            state = .synced(lastSuccess)
 
         case .setup:
             // Setup succeeding only means sync is available, not that any

@@ -470,7 +470,10 @@ card row opens the editor for an existing one.
   `$inline$`/`$$display$$` LaTeX.
   Formatting is applied as **attributes only**: the editor never replaces
   characters, so the caret, selection, undo stack, autocorrection and input
-  methods behave natively. Markdown markers stay visible but dimmed.
+  methods behave natively. Both platform editors skip re-applying attributes
+  or replacing the text while an input method is composing, and the macOS
+  editor keeps `isFocused` in sync with the window's first responder in both
+  directions. Markdown markers stay visible but dimmed.
   Return continues a list (and ends it on an empty item). Smart dashes are
   off so `---` can be typed. There are no
   formatting buttons.
@@ -540,12 +543,14 @@ card row opens the editor for an existing one.
 - In Guess mode the same marking hints stay below the card before and after the
   reveal, so marking works with a mouse in either state. Correct counts the
   card as learned, Incorrect re-queues it. In Type mode the answer field is
-  replaced by a Next Card button (Escape) while the verdict lingers. That
+  replaced by a correct/incorrect badge and a Next Card button (Escape)
+  while the verdict lingers. That
   button only ends the verdict early with the judged result; the mark is
   already recorded, so it never records a second one. Delayed callbacks (the
   fly-off and the verdict timer) carry the session's `generation` and are
-  ignored after a restart. The judged verdict (`lastTypedCorrect`) is not
-  shown anywhere yet.
+  ignored after a restart. While the verdict lingers, a correct/incorrect
+  badge sits beside the Next Card button (`studyView.verdict.correct` /
+  `.incorrect`).
 - Every mark updates `isKnown` / `lastReviewedAt`, appends a
   `FlashcardReview`, and saves the context so the state survives relaunch
   and syncs through iCloud.
@@ -587,9 +592,12 @@ in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
   `CKError.partialFailure`: the outer error only says a batch was partly
   rejected, and the real reason is in the Failed records rows. Identical
   details and records are grouped with a count; repeated failures of the same
-  operation and error are grouped too, the list is capped at 100 entries, and
-  **Clear** empties it. The log is in memory only, so it starts empty after a
-  relaunch; text is selectable for copying into a bug report.
+  operation and error are grouped too (including older entries, not only the
+  newest), the list is capped at 100 entries, and **Clear** empties it. The
+  log is in memory only, so it starts empty after a relaunch; text is
+  selectable for copying into a bug report. A success clears only its own
+  operation, so a failing import stays visible while exports succeed; a setup
+  success also ends the "syncing" state its start event set.
 - Imports run through `NSPersistentStoreRemoteChange` and normally refresh
   `@Query` results without extra work. When data looks missing, relaunch before
   assuming it never synced — TN3164 lists this first.
@@ -754,10 +762,16 @@ text — do not paste it into Swift code or the string catalog.
   Never feed `rendered` back into the editor, and never restyle a text view by
   assigning a new attributed string — that resets the caret to the end.
   Apply attributes run by run to the existing `textStorage` instead.
+- Inline markers (`` ` ``, `**`, `~~`, `$`) must close on the same line;
+  `findToken` rejects a closing marker on a later line so a span cannot dim
+  text across a line break. `$$` blocks are the exception and may span lines.
 - LaTeX is typeset by SwiftMath at the current font size and embedded as an
   `NSTextAttachment`. `RichTextLabel` wraps `UILabel`/`NSTextField` because
   SwiftUI `Text` drops attachments. The math image is rasterized, so it does
-  not follow Dynamic Type after rendering.
+  not follow Dynamic Type after rendering. A `$$` opener without a closing
+  `$$` on the same line starts a block that continues until the closing `$$`,
+  so display math can span several lines. The image cache key includes the
+  appearance, because a light image's text color would disappear in dark mode.
 - Code highlighting runs synchronously through JavaScriptCore, and the
   HighlighterSwift engine is not thread-safe. `CodeSyntaxHighlighter`
   serializes access with a lock and caches spans by code, language and

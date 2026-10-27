@@ -182,7 +182,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "New Card"
+            "value" : "Next Card"
           }
         },
         "es" : {
@@ -5090,7 +5090,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Correct"
+            "value" : "Swipe right: correct"
           }
         },
         "es" : {
@@ -5124,7 +5124,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Incorrect"
+            "value" : "Swipe left: incorrect"
           }
         },
         "es" : {
@@ -6695,6 +6695,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新しいカードセットを作成"
+          }
+        }
+      }
+    },
+    "studyView.verdict.correct" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Richtig"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correct"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correcto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correct"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正解"
+          }
+        }
+      }
+    },
+    "studyView.verdict.incorrect" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falsch"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incorrect"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incorrecto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incorrect"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不正解"
           }
         }
       }

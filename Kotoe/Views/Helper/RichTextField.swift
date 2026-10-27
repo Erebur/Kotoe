@@ -650,7 +650,8 @@ struct RichTextEditor: NSViewRepresentable {
             right: 0
         )
 
-        if !context.coordinator.isProgrammaticChange {
+        if !context.coordinator.isProgrammaticChange,
+           !textView.hasMarkedText() {
             let current = textView.textStorage?.string ?? ""
             if current != attributedText.string {
                 context.coordinator.isProgrammaticChange = true
@@ -659,6 +660,21 @@ struct RichTextEditor: NSViewRepresentable {
 
                 DispatchQueue.main.async {
                     context.coordinator.restyle()
+                }
+            }
+        }
+
+        // Focus changes made by the parent keep the text view in sync too, so
+        // a programmatically focused field really becomes first responder.
+        if isEditable, let window = textView.window {
+            let isFirstResponder = window.firstResponder === textView
+            if isFocused, !isFirstResponder {
+                DispatchQueue.main.async {
+                    window.makeFirstResponder(textView)
+                }
+            } else if !isFocused, isFirstResponder {
+                DispatchQueue.main.async {
+                    window.makeFirstResponder(nil)
                 }
             }
         }
@@ -901,7 +917,8 @@ struct RichTextEditor: UIViewRepresentable {
             right: 0
         )
 
-        if !context.coordinator.isProgrammaticChange {
+        if !context.coordinator.isProgrammaticChange,
+           textView.markedTextRange == nil {
             if textView.attributedText.string != attributedText.string {
                 context.coordinator.isProgrammaticChange = true
                 textView.attributedText = attributedText

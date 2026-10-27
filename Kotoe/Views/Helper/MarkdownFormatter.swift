@@ -199,8 +199,50 @@ enum MarkdownFormatter {
         var hasContent = false
         var newlineAttributes = baseAttributes(style)
 
+        // Lines collected for a display math block that spans several lines.
+        var mathBlock: [String]?
+
         for rawLine in rawLines {
             let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
+
+            // Inside a $$ block every line belongs to the math until a line
+            // closes the block with $$. A single-line $$…$$ is handled below
+            // as ordinary inline math.
+            if mathBlock != nil {
+                if let close = trimmed.range(of: "$$") {
+                    var block = mathBlock ?? []
+                    block.append(
+                        String(trimmed[trimmed.startIndex..<close.lowerBound])
+                    )
+                    appendDisplayMath(
+                        block,
+                        to: output,
+                        style: style,
+                        hasContent: &hasContent
+                    )
+                    mathBlock = nil
+                    newlineAttributes = baseAttributes(style)
+
+                    // Text after the closing $$ on the same line is normal
+                    // text and starts a new line.
+                    let remainder = String(trimmed[close.upperBound...])
+                    if !remainder.isEmpty {
+                        if hasContent {
+                            output.append(
+                                NSAttributedString(
+                                    string: "\n",
+                                    attributes: newlineAttributes
+                                )
+                            )
+                        }
+                        appendRenderedLine(remainder, to: output, style: style)
+                        hasContent = true
+                    }
+                } else {
+                    mathBlock?.append(rawLine)
+                }
+                continue
+            }
 
             if trimmed.hasPrefix("```") {
                 if inFence {
@@ -224,6 +266,14 @@ enum MarkdownFormatter {
 
             if inFence {
                 codeLines.append(rawLine)
+                continue
+            }
+
+            // An opening $$ without a closing $$ on the same line starts a
+            // block that continues until the closing $$.
+            if trimmed.hasPrefix("$$"),
+               !trimmed.dropFirst(2).contains("$$") {
+                mathBlock = [String(trimmed.dropFirst(2))]
                 continue
             }
 
@@ -262,6 +312,16 @@ enum MarkdownFormatter {
                 highlightingCode: highlightingCode,
                 hasContent: &hasContent,
                 newlineAttributes: &newlineAttributes
+            )
+        }
+
+        // An unterminated $$ block still shows its math.
+        if let mathBlock {
+            appendDisplayMath(
+                mathBlock,
+                to: output,
+                style: style,
+                hasContent: &hasContent
             )
         }
 
@@ -1267,6 +1327,39 @@ enum MarkdownFormatter {
 
     // MARK: - Math
 
+    /// Appends a display math block that spanned several source lines. The
+    /// lines are joined so LaTeX environments (`\\begin{aligned}`) keep their
+    /// line breaks.
+    private static func appendDisplayMath(
+        _ lines: [String],
+        to output: NSMutableAttributedString,
+        style: Style,
+        hasContent: inout Bool
+    ) {
+        let latex = lines
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !latex.isEmpty else { return }
+
+        if hasContent {
+            output.append(
+                NSAttributedString(
+                    string: "\n",
+                    attributes: baseAttributes(style)
+                )
+            )
+        }
+
+        appendMath(
+            latex,
+            font: style.baseFont,
+            display: true,
+            to: output,
+            style: style
+        )
+        hasContent = true
+    }
+
     private static func appendMath(
         _ latex: String,
         font: FormatFont,
@@ -1282,7 +1375,8 @@ enum MarkdownFormatter {
             latex: trimmed,
             fontSize: font.pointSize,
             color: style.textColor,
-            display: display
+            display: display,
+            appearance: style.appearance
            ) {
             let attachment = NSTextAttachment()
             attachment.image = image
@@ -1326,9 +1420,13 @@ enum MarkdownFormatter {
         latex: String,
         fontSize: CGFloat,
         color: FormatColor,
-        display: Bool
+        display: Bool,
+        appearance: MarkdownAppearance
     ) -> PlatformImage? {
-        let key = "\(fontSize)|\(display)|\(color.description)|\(latex)"
+        // A math image resolves its text color when it is drawn, so a light
+        // image must not be reused in dark mode (the text would vanish).
+        let key =
+            "\(fontSize)|\(display)|\(appearance)|\(color.description)|\(latex)"
             as NSString
 
         if let cached = mathImageCache.object(forKey: key) {
@@ -1583,7 +1681,17 @@ enum MarkdownFormatter {
         }
         let searchRange = NSRange(location: start, length: end - start)
         let found = string.range(of: token, options: [], range: searchRange)
-        return found.location == NSNotFound ? nil : found.location
+        guard found.location != NSNotFound else { return nil }
+
+        // Inline markers close on the same line. A marker on a later line
+        // would otherwise style across a line break and dim the marker that
+        // starts the next line's span.
+        let newline = string.range(
+            of: "\n",
+            options: [],
+            range: NSRange(location: start, length: found.location - start)
+        )
+        return newline.location == NSNotFound ? found.location : nil
     }
 
     private static func isStar(_ string: NSString, at index: Int) -> Bool {

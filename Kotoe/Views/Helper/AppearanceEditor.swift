@@ -14,6 +14,10 @@ struct AppearanceEditor: View {
     let subtitle: LocalizedStringKey
     let symbols: [String]
 
+    /// The name-derived default. Picking it keeps the automatic behaviour.
+    private let defaultSymbol: String
+    private let defaultTintIndex: Int
+
     @Binding var iconName: String?
     @Binding var tintIndex: Int?
 
@@ -34,6 +38,8 @@ struct AppearanceEditor: View {
         self.title = title
         self.subtitle = subtitle
         self.symbols = symbols
+        self.defaultSymbol = defaultSymbol
+        self.defaultTintIndex = defaultTintIndex
 
         _iconName = iconName
         _tintIndex = tintIndex
@@ -236,8 +242,10 @@ struct AppearanceEditor: View {
     // MARK: - Actions
 
     private func apply() {
-        iconName = draftSymbol
-        tintIndex = draftTintIndex
+        // Picking the derived default keeps the automatic behaviour, so a
+        // subject's icon or color can still follow its name.
+        iconName = draftSymbol == defaultSymbol ? nil : draftSymbol
+        tintIndex = draftTintIndex == defaultTintIndex ? nil : draftTintIndex
         dismiss()
     }
 
