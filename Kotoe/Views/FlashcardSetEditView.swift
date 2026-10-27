@@ -426,11 +426,7 @@ struct FlashcardSetEditView: View {
     private var appearanceEditor: some View {
         AppearanceEditor(
             title: "setEditView.appearanceEditor.title",
-            subtitle: String(
-                localized: "setEditView.appearanceEditor.subtitle",
-                defaultValue:
-                    "Choose the icon and color for \(flashcardSet.name)."
-            ),
+            subtitle: "setEditView.appearanceEditor.subtitle",
             symbols: KotoeTheme.setSymbols,
             defaultSymbol: "rectangle.stack.fill",
             defaultTintIndex: flashcardSet.effectiveTintIndex,

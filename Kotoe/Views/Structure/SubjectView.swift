@@ -76,7 +76,6 @@ struct SubjectView: View {
                 onCreate: createSet,
                 onCancel: closeSheet
             )
-            .dialogSheet()
         }
         .sheet(item: $editingSet) { set in
             FlashcardSetEditView(flashcardSet: set)
@@ -461,11 +460,7 @@ struct SubjectView: View {
     private var subjectAppearanceEditor: some View {
         AppearanceEditor(
             title: "subjectView.subjectAppearanceEditor.title",
-            subtitle: String(
-                localized: "subjectView.subjectAppearanceEditor.subtitle",
-                defaultValue:
-                    "Choose the icon and color for \(subject.name)."
-            ),
+            subtitle: "subjectView.subjectAppearanceEditor.subtitle",
             symbols: KotoeTheme.subjectSymbols,
             defaultSymbol: KotoeTheme.style(for: subject.name).symbol,
             defaultTintIndex: subject.effectiveTintIndex,
@@ -492,10 +487,7 @@ struct SubjectView: View {
     private func setAppearanceEditor(for set: FlashcardSet) -> some View {
         AppearanceEditor(
             title: "subjectView.appearanceEditor.title",
-            subtitle: String(
-                localized: "subjectView.appearanceEditor.subtitle",
-                defaultValue: "Choose the icon and color for \(set.name)."
-            ),
+            subtitle: "subjectView.appearanceEditor.subtitle",
             symbols: KotoeTheme.setSymbols,
             defaultSymbol: "rectangle.stack.fill",
             defaultTintIndex: set.effectiveTintIndex,

@@ -11,7 +11,7 @@ import SwiftUI
 struct AppearanceEditor: View {
 
     let title: LocalizedStringKey
-    let subtitle: String
+    let subtitle: LocalizedStringKey
     let symbols: [String]
 
     @Binding var iconName: String?
@@ -24,7 +24,7 @@ struct AppearanceEditor: View {
 
     init(
         title: LocalizedStringKey,
-        subtitle: String,
+        subtitle: LocalizedStringKey,
         symbols: [String],
         defaultSymbol: String,
         defaultTintIndex: Int,
@@ -60,21 +60,23 @@ struct AppearanceEditor: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        PopupView(
+            title: title,
+            subtitle: subtitle,
+            primaryTitle: "shared.actions.done",
+            primaryAction: { apply(); dismiss() },
+            cancelAction: { dismiss() },
+            customFooter: AnyView(footer)
+        ) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     header
                     iconSection
                     colorSection
                 }
-                .padding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-
-            Divider()
-            footer
         }
-        .clearInitialFocusOnMac()
     }
 
     // MARK: - Header
@@ -228,7 +230,6 @@ struct AppearanceEditor: View {
             .tint(KotoeTheme.accent)
             .keyboardShortcut(.defaultAction)
         }
-        .padding(.horizontal, 24)
         .padding(.vertical, 15)
     }
 

@@ -20,39 +20,20 @@ struct SyncErrorLogView: View {
     let monitor: CloudKitSyncMonitor
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
+        PopupView(
+            title: "contentView.syncLog.title",
+            subtitle: "contentView.syncLog.subtitle",
+            systemImage: "exclamationmark.icloud.fill",
+            primaryAction: { dismiss() },
+            cancelTitle: nil,
+            customFooter: AnyView(footer)
+        ) {
             content
-            footer
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .logSheetSize()
+        .popupSize(height: 560)
     }
 
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(alignment: .center, spacing: 14) {
-            IconTile(
-                symbol: "exclamationmark.icloud.fill",
-                tint: KotoeTheme.accent,
-                size: 44
-            )
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("contentView.syncLog.title")
-                    .font(.system(.title3, design: .rounded, weight: .bold))
-
-                Text("contentView.syncLog.subtitle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 20)
-        .padding(.bottom, 14)
-    }
+    // MARK: - Content
 
     // MARK: - Content
 
@@ -261,7 +242,6 @@ struct SyncErrorLogView: View {
             .tint(KotoeTheme.accent)
             .keyboardShortcut(.defaultAction)
         }
-        .padding(.horizontal, 20)
         .padding(.vertical, 16)
     }
 }

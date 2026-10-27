@@ -86,7 +86,6 @@ struct ContentView: View {
                     onCreate: createSubject,
                     onCancel: closeSheet
                 )
-                .dialogSheet()
             }
             .sheet(item: $customizingSubject) { subject in
                 appearanceEditor(for: subject)
@@ -419,11 +418,7 @@ struct ContentView: View {
     private func appearanceEditor(for subject: Subject) -> some View {
         AppearanceEditor(
             title: "contentView.appearanceEditor.title",
-            subtitle: String(
-                localized: "contentView.appearanceEditor.subtitle",
-                defaultValue:
-                    "Choose the icon and color that represent \(subject.name)."
-            ),
+            subtitle: "contentView.appearanceEditor.subtitle",
             symbols: KotoeTheme.subjectSymbols,
             defaultSymbol: KotoeTheme.style(for: subject.name).symbol,
             defaultTintIndex: subject.effectiveTintIndex,

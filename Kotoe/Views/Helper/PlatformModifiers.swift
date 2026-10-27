@@ -123,6 +123,27 @@ extension View {
         #endif
     }
 
+    /// Standard size for popups: a fixed width on macOS, where sheets size
+    /// from their content, and medium/large detents with a drag indicator on
+    /// iOS. Pass a height to pin scrollable popups (for example the sync log).
+    @ViewBuilder
+    func popupSize(
+        width: CGFloat = 520,
+        height: CGFloat? = nil
+    ) -> some View {
+        #if os(macOS)
+        if let height {
+            self.frame(width: width).frame(height: height)
+        } else {
+            self.frame(width: width)
+        }
+        #else
+        self
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        #endif
+    }
+
     /// Shows the pointing-hand cursor over custom icon buttons. A plain
     /// SwiftUI button keeps the arrow cursor on the Mac.
     @ViewBuilder

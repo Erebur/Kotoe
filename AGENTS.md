@@ -343,6 +343,13 @@ Kotoe/
     Theme.swift                  brand colors, card surfaces, shared UI pieces
     Helper/
       PlatformModifiers.swift    cross-platform view modifiers
+      PopupView.swift            modal sheet with the app's default popup
+                                   appearance: icon header, content area, and
+                                   a footer with cancel / primary actions;
+                                   used by every popup sheet so sizing,
+                                   header padding, typography, button
+                                   placement, and keyboard shortcuts stay
+                                   identical
       AppearanceEditor.swift     icon + color picker for subjects and sets
       CreateItemSheet.swift      shared "create subject / create set" prompt
       PreviewData.swift          in-memory sample models for Xcode previews
@@ -812,6 +819,9 @@ text — do not paste it into Swift code or the string catalog.
 - Change icon/color choices or the appearance UI: `Views/Theme.swift`
   (`subjectSymbols`, `setSymbols`, `palette`) and
   `Views/Helper/AppearanceEditor.swift`.
+- Change the default appearance of popup sheets (header, sizing, footer
+  buttons, keyboard shortcuts): `Views/Helper/PopupView.swift` and
+  `Views/Helper/PlatformModifiers.swift` (`popupSize`).
 - Change UI copy or add a language: `Localizable.xcstrings`, plus
   `Control/LocalizedCounts.swift` for plural counts; see **Localization**.
 - Change sync status, logging, or CloudKit diagnostics:

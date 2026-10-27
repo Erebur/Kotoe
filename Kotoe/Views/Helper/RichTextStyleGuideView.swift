@@ -16,17 +16,12 @@ struct RichTextStyleGuideView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("shared.richText.styleGuide.title")
-                    .font(.title2.weight(.semibold))
-
-                Text("shared.richText.styleGuide.subtitle")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
+        PopupView(
+            title: "shared.richText.styleGuide.title",
+            subtitle: "shared.richText.styleGuide.subtitle",
+            primaryAction: { dismiss() },
+            cancelTitle: nil
+        ) {
             RichTextField(
                 placeholder: "shared.content.empty",
                 attributedText: .constant(sample),
@@ -37,28 +32,8 @@ struct RichTextStyleGuideView: View {
                 fillsHeight: true
             )
             .frame(maxHeight: .infinity)
-
-            HStack {
-                Spacer()
-
-                Button("shared.actions.done") {
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-            }
         }
-        .padding(20)
-        .frame(
-            maxWidth: .infinity,
-            maxHeight: .infinity,
-            alignment: .topLeading
-        )
-        .background(KotoeTheme.windowBackground)
-        #if os(macOS)
-        .frame(minWidth: 640, minHeight: 580)
-        #else
-        .presentationDetents([.large])
-        #endif
+        .popupSize(width: 640, height: 580)
     }
 
     private var sample: NSAttributedString {

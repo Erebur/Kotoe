@@ -2,8 +2,9 @@
 //  CreateItemSheet.swift
 //  Kōtoe
 //
-//  A small, consistent prompt used for creating subjects and sets.
+//  Created by Simon Weber on 21.10.26.
 //
+//  A small, consistent prompt used for creating subjects and sets.
 
 import SwiftUI
 
@@ -28,25 +29,19 @@ struct CreateItemSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HStack(alignment: .center, spacing: 14) {
-                IconTile(
-                    symbol: systemImage,
-                    tint: tint,
-                    size: 48
-                )
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(.title2, design: .rounded, weight: .bold))
-
-                    Text(prompt)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
+        PopupView(
+            title: title,
+            subtitle: prompt,
+            systemImage: systemImage,
+            tint: tint,
+            primaryTitle: actionTitle,
+            primaryAction: create,
+            primaryDisabled: trimmedName.isEmpty,
+            cancelAction: onCancel,
+            // The whole point of this sheet is to type a name, so keep the
+            // field focused instead of clearing the initial responder.
+            clearsInitialFocusOnMac: false
+        ) {
             TextField(placeholder, text: $name)
                 .textFieldStyle(.plain)
                 .font(.title3)
@@ -69,32 +64,14 @@ struct CreateItemSheet: View {
                 .focused($isFocused)
                 .onSubmit(create)
                 .animation(.easeOut(duration: 0.15), value: isFocused)
-
-            HStack(spacing: 10) {
-                Spacer()
-
-                Button("shared.actions.cancel", role: .cancel) {
-                    onCancel()
+                // Give the sheet a moment to finish presenting before taking
+                // focus. On macOS PopupView clears the initial responder, so
+                // this deliberately re-focuses the field after that.
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        isFocused = true
+                    }
                 }
-                .keyboardShortcut(.cancelAction)
-
-                Button(actionTitle) {
-                    create()
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(trimmedName.isEmpty)
-            }
-            .controlSize(.large)
-            .tint(tint)
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .onAppear {
-            // Give the sheet a moment to finish presenting before taking focus.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                isFocused = true
-            }
         }
     }
 
