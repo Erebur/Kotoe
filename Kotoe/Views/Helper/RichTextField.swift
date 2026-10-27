@@ -435,12 +435,12 @@ enum MarkdownListContinuation {
 
 #if os(macOS)
 
-/// A scroll view that keeps a scroll gesture inside the text field once its
-/// text scrolls. AppKit otherwise chains wheel events to the enclosing scroll
-/// view as soon as the text reaches its top or bottom, which moves the form
-/// the field sits in while the user is still reading. A field whose text fits
-/// still lets the gesture through, so hovering a short field does not block
-/// page scrolling.
+/// A scroll view that keeps the momentum of a scroll gesture inside the text
+/// field once its text reaches the top or bottom. AppKit otherwise chains the
+/// leftover inertia to the enclosing scroll view, which throws the form the
+/// field sits in right after the fingers lift. Finger-driven scrolling and a
+/// field whose text fits still pass the gesture through, so the page scrolls
+/// normally.
 private final class RichTextScrollView: NSScrollView {
 
     override func scrollWheel(with event: NSEvent) {
@@ -450,9 +450,10 @@ private final class RichTextScrollView: NSScrollView {
             return
         }
 
-        if isAtVerticalEdge(towards: delta) {
-            // Swallow the rest of the gesture instead of handing it to the
-            // enclosing scroll view.
+        // Only the momentum tail is blocked; while the fingers are still on
+        // the trackpad an exhausted field may chain to the enclosing view.
+        if !event.momentumPhase.isEmpty,
+           isAtVerticalEdge(towards: delta) {
             return
         }
 

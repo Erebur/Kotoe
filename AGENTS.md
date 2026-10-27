@@ -708,9 +708,9 @@ text — do not paste it into Swift code or the string catalog.
   that `styleInline` must skip. `rendered(..., highlightingCode: false)` keeps
   summaries and typed-answer judging from loading the JS engine at all.
 - On macOS the text field's `NSTextView` sits in a `RichTextScrollView` that
-  swallows wheel events once the text is scrolled to its top or bottom, so the
-  enclosing form does not start scrolling in the middle of a gesture. A field
-  whose text fits still passes the gesture through.
+  swallows momentum wheel events once the text is scrolled to its top or
+  bottom, so a flick that reaches the end does not throw the enclosing form.
+  Finger-driven scrolling and a field whose text fits pass the gesture through.
 - The rich text field's split view is side by side on macOS and stacked on
   iOS. In preview and split the editor stays mounted but invisible so its
   measured height keeps sizing the field; the hidden copy is read-only and
