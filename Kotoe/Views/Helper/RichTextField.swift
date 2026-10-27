@@ -435,6 +435,53 @@ enum MarkdownListContinuation {
 
 #if os(macOS)
 
+/// A scroll view that keeps a scroll gesture inside the text field once its
+/// text scrolls. AppKit otherwise chains wheel events to the enclosing scroll
+/// view as soon as the text reaches its top or bottom, which moves the form
+/// the field sits in while the user is still reading. A field whose text fits
+/// still lets the gesture through, so hovering a short field does not block
+/// page scrolling.
+private final class RichTextScrollView: NSScrollView {
+
+    override func scrollWheel(with event: NSEvent) {
+        let delta = event.scrollingDeltaY
+        guard delta != 0 else {
+            super.scrollWheel(with: event)
+            return
+        }
+
+        if isAtVerticalEdge(towards: delta) {
+            // Swallow the rest of the gesture instead of handing it to the
+            // enclosing scroll view.
+            return
+        }
+
+        super.scrollWheel(with: event)
+    }
+
+    /// `delta` follows AppKit's convention: positive scrolls toward the top.
+    private func isAtVerticalEdge(towards delta: CGFloat) -> Bool {
+        guard let documentView else { return false }
+
+        let visible = documentVisibleRect
+        let contentHeight = documentView.frame.height
+        let scrollableHeight =
+            contentHeight + contentInsets.top + contentInsets.bottom
+        guard scrollableHeight > visible.height + 0.5 else {
+            // The text fits; the field has nothing to scroll.
+            return false
+        }
+
+        if delta > 0 {
+            return visible.minY <= -contentInsets.top + 0.5
+        }
+        // The bottom inset is room for the floating mode switch, so the
+        // last line can scroll clear of it; count it as part of the content.
+        let bottom = contentHeight + contentInsets.bottom
+        return visible.maxY >= bottom - 0.5
+    }
+}
+
 struct RichTextEditor: NSViewRepresentable {
 
     @Binding var attributedText: NSAttributedString
@@ -458,7 +505,7 @@ struct RichTextEditor: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
+        let scrollView = RichTextScrollView()
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
         scrollView.hasVerticalScroller = true

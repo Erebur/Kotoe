@@ -282,6 +282,7 @@ the worktree commits should keep their branch history in the main checkout.
 ## Repository layout
 
 ```
+.gitignore                       Local build output (`dd/`, `dd-ios/`)
 LICENSE                          MIT license text; bundled into the app
 README.md                        project overview, screenshots, stats, roadmap
 Localizable.xcstrings            UI copy for en, de, es, fr, ja
@@ -706,6 +707,10 @@ text — do not paste it into Swift code or the string catalog.
   font and background are discarded. `styleBlocks` returns the fenced ranges
   that `styleInline` must skip. `rendered(..., highlightingCode: false)` keeps
   summaries and typed-answer judging from loading the JS engine at all.
+- On macOS the text field's `NSTextView` sits in a `RichTextScrollView` that
+  swallows wheel events once the text is scrolled to its top or bottom, so the
+  enclosing form does not start scrolling in the middle of a gesture. A field
+  whose text fits still passes the gesture through.
 - The rich text field's split view is side by side on macOS and stacked on
   iOS. In preview and split the editor stays mounted but invisible so its
   measured height keeps sizing the field; the hidden copy is read-only and
