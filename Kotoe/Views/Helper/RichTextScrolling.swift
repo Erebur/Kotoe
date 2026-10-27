@@ -113,15 +113,19 @@ final class SplitScrollSync {
     #endif
 
     deinit {
-        #if os(macOS)
-        for observer in observers.values {
-            NotificationCenter.default.removeObserver(observer)
+        // Observations are registered on the main queue, so tear them down
+        // on the main actor.
+        MainActor.assumeIsolated {
+            #if os(macOS)
+            for observer in observers.values {
+                NotificationCenter.default.removeObserver(observer)
+            }
+            #else
+            for observation in observations.values {
+                observation.invalidate()
+            }
+            #endif
         }
-        #else
-        for observation in observations.values {
-            observation.invalidate()
-        }
-        #endif
     }
 
     // MARK: Attach & detach
@@ -148,8 +152,11 @@ final class SplitScrollSync {
             queue: .main
         ) { [weak self, weak scrollView] _ in
             guard let self, let scrollView else { return }
-            guard self.views[side]?.value === scrollView else { return }
-            self.didScroll(side)
+            // The notification is delivered on the main queue.
+            MainActor.assumeIsolated {
+                guard self.views[side]?.value === scrollView else { return }
+                self.didScroll(side)
+            }
         }
         #else
         observations[side] = scrollView.observe(
@@ -157,8 +164,11 @@ final class SplitScrollSync {
             options: [.new]
         ) { [weak self, weak scrollView] _, _ in
             guard let self, let scrollView else { return }
-            guard self.views[side]?.value === scrollView else { return }
-            self.didScroll(side)
+            // The observation is delivered on the main queue.
+            MainActor.assumeIsolated {
+                guard self.views[side]?.value === scrollView else { return }
+                self.didScroll(side)
+            }
         }
         #endif
     }
