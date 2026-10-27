@@ -19,6 +19,22 @@
 		D512862030856EF500DBA69D /* Kōtoe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Kōtoe.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		D5ADAE9F3086B23B00FAAC41 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		D5B000002F1A0001000000002 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
+		D5D0C0010000000000000001 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		D5D0C0010000000000000002 /* AGENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AGENTS.md; sourceTree = "<group>"; };
+		D5D0C0010000000000000005 /* app-icon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = app-icon.png; sourceTree = "<group>"; };
+		D5D0C0010000000000000006 /* library.webp */ = {isa = PBXFileReference; lastKnownFileType = org.webmproject.webp; path = library.webp; sourceTree = "<group>"; };
+		D5D0C0010000000000000008 /* demo */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = demo; sourceTree = "<group>"; };
+		D5D0C001000000000000000A /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Package.swift; sourceTree = "<group>"; };
+		D5D0C001000000000000000B /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		D5D0C001000000000000000E /* DemoCLI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoCLI.swift; sourceTree = "<group>"; };
+		D5D0C001000000000000000F /* DemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoData.swift; sourceTree = "<group>"; };
+		D5D0C0010000000000000010 /* DemoOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoOptions.swift; sourceTree = "<group>"; };
+		D5D0C0010000000000000011 /* DemoRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoRenderer.swift; sourceTree = "<group>"; };
+		D5D0C0010000000000000012 /* DemoScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoScenes.swift; sourceTree = "<group>"; };
+		D5D0C0010000000000000014 /* HUDController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDController.swift; sourceTree = "<group>"; };
+		D5D0C0010000000000000015 /* HUDMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDMain.swift; sourceTree = "<group>"; };
+		D5D0C0010000000000000016 /* HUDModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDModel.swift; sourceTree = "<group>"; };
+		D5D0C0010000000000000017 /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -58,12 +74,84 @@
 		D512861730856EF500DBA69D = {
 			isa = PBXGroup;
 			children = (
+				D5D0C0010000000000000001 /* README.md */,
+				D5D0C0010000000000000002 /* AGENTS.md */,
 				D50EA35D30881179006DD902 /* Localizable.xcstrings */,
 				D5ADAE9F3086B23B00FAAC41 /* AppIcon.icon */,
 				D5B000002F1A0001000000002 /* LICENSE */,
 				D512862230856EF500DBA69D /* Kotoe */,
+				D5D0C0010000000000000003 /* docs */,
+				D5D0C0010000000000000007 /* Tools */,
 				D512862130856EF500DBA69D /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		D5D0C0010000000000000003 /* docs */ = {
+			isa = PBXGroup;
+			children = (
+				D5D0C0010000000000000004 /* images */,
+			);
+			path = docs;
+			sourceTree = "<group>";
+		};
+		D5D0C0010000000000000004 /* images */ = {
+			isa = PBXGroup;
+			children = (
+				D5D0C0010000000000000005 /* app-icon.png */,
+				D5D0C0010000000000000006 /* library.webp */,
+			);
+			path = images;
+			sourceTree = "<group>";
+		};
+		D5D0C0010000000000000007 /* Tools */ = {
+			isa = PBXGroup;
+			children = (
+				D5D0C0010000000000000008 /* demo */,
+				D5D0C0010000000000000009 /* DemoKit */,
+			);
+			path = Tools;
+			sourceTree = "<group>";
+		};
+		D5D0C0010000000000000009 /* DemoKit */ = {
+			isa = PBXGroup;
+			children = (
+				D5D0C001000000000000000A /* Package.swift */,
+				D5D0C001000000000000000B /* README.md */,
+				D5D0C001000000000000000C /* Sources */,
+			);
+			path = DemoKit;
+			sourceTree = "<group>";
+		};
+		D5D0C001000000000000000C /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				D5D0C001000000000000000D /* KotoeDemo */,
+				D5D0C0010000000000000013 /* KotoeDemoHUD */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		D5D0C001000000000000000D /* KotoeDemo */ = {
+			isa = PBXGroup;
+			children = (
+				D5D0C001000000000000000E /* DemoCLI.swift */,
+				D5D0C001000000000000000F /* DemoData.swift */,
+				D5D0C0010000000000000010 /* DemoOptions.swift */,
+				D5D0C0010000000000000011 /* DemoRenderer.swift */,
+				D5D0C0010000000000000012 /* DemoScenes.swift */,
+			);
+			path = KotoeDemo;
+			sourceTree = "<group>";
+		};
+		D5D0C0010000000000000013 /* KotoeDemoHUD */ = {
+			isa = PBXGroup;
+			children = (
+				D5D0C0010000000000000014 /* HUDController.swift */,
+				D5D0C0010000000000000015 /* HUDMain.swift */,
+				D5D0C0010000000000000016 /* HUDModel.swift */,
+				D5D0C0010000000000000017 /* HUDView.swift */,
+			);
+			path = KotoeDemoHUD;
 			sourceTree = "<group>";
 		};
 		D512862130856EF500DBA69D /* Products */ = {

@@ -36,9 +36,13 @@ repetition scheduling, archiving, export, search, and tests do not.
 
 The Xcode project uses a **file-system-synchronized group**, so any `.swift`
 file added anywhere under `Kotoe/` is compiled automatically. Do **not**
-hand-edit `Kōtoe.xcodeproj/project.pbxproj` to add files. The exceptions are
-the files that sit at the project root (outside the synchronized group) and
-are added to the target explicitly: `Localizable.xcstrings` and `LICENSE`.
+hand-edit `Kōtoe.xcodeproj/project.pbxproj` to add app source files. Two
+exceptions sit at the project root (outside the synchronized group) and are
+added to the target explicitly: `Localizable.xcstrings` and `LICENSE`.
+`README.md`, `AGENTS.md`, `docs/`, and `Tools/` also appear in the navigator
+as reference-only file/group entries with **no target membership**, so they
+are never compiled or bundled; add a reference to the matching group when
+adding a tool or doc file.
 
 The project/scheme name contains a macron (`Kōtoe`). Always quote it in shell
 commands.
