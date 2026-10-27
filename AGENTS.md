@@ -81,9 +81,26 @@ for **both macOS and iOS** matters because platform-specific code paths exist.
 
 ## Demo & screenshot workflow
 
-There is no preview harness. To inspect a specific screen or compare a visual
-change, build a throwaway copy of the project instead of modifying the working
-tree.
+`Tools/demo` renders app screens headlessly in about a second per screen, shows
+a floating panel with progress and time left while it works, and writes PNGs to
+`.demo/`. Reach for it first when a change needs a visual check:
+
+```sh
+Tools/demo library                 # one screen
+Tools/demo subject study-card      # a batch, one app activation
+Tools/demo library --appearance dark --locale de
+Tools/demo --list                  # scene ids, sizes, and titles
+```
+
+It compiles the app's own sources through `Tools/DemoKit`, uses in-memory
+SwiftData with CloudKit off, and never launches the app, the simulator, or
+iCloud. See `Tools/DemoKit/README.md`. Use the manual workflow below only when
+a change needs the real app: iOS layout, sheets, gestures, animation frames, or
+anything the scenes do not cover.
+
+### Throwaway app builds
+
+Build a throwaway copy of the project instead of modifying the working tree.
 
 1. Copy the repo to a temp directory and keep the demo build separate:
 
@@ -287,6 +304,12 @@ LICENSE                          MIT license text; bundled into the app
 README.md                        project overview, screenshots, stats, roadmap
 Localizable.xcstrings            UI copy for en, de, es, fr, ja
 docs/images/                     Screenshots referenced by README.md
+Tools/
+  demo                           headless screen renderer + progress panel
+  DemoKit/                       SwiftPM package behind Tools/demo
+    Package.swift                KotoeDemo and KotoeDemoHUD executables
+    Sources/KotoeDemo/           renderer; compiles Kotoe/ via a symlink
+    Sources/KotoeDemoHUD/        floating progress panel
 Kotoe/
   FlashApp.swift                 @main app, SwiftData ModelContainer
   ContentView.swift              Subject list (root screen)
@@ -786,6 +809,10 @@ text — do not paste it into Swift code or the string catalog.
   **License**.
 - Change the public project page: `README.md` and the screenshots in
   `docs/images/`.
+- Add or change a demo screen: `Tools/DemoKit/Sources/KotoeDemo/DemoScenes.swift`
+  (plus `DemoData.swift` for sample content); see `Tools/DemoKit/README.md`.
+- Change the demo panel, progress, or supervisor:
+  `Tools/DemoKit/Sources/KotoeDemoHUD/` and the `Tools/demo` wrapper.
 
 ## Known gaps (safe next steps)
 
@@ -819,6 +846,11 @@ text — do not paste it into Swift code or the string catalog.
 - The push-notification entitlement and background mode are only there for
   SwiftData's CloudKit mirror; the app has no notification code of its own. No
   tests.
+- `Tools/demo` only renders still, macOS-layout screens from the eleven scenes
+  in `DemoScenes.swift`; it does not exercise iOS presentation, gestures,
+  animations, or typing states, and it needs a graphical login session. The
+  panel also takes focus for the capture (SwiftUI grays out tinted controls in
+  inactive windows) and gives it back afterwards.
 
 ## Maintaining this file
 

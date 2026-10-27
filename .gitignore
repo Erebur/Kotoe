@@ -2,3 +2,9 @@
 /dd/
 /dd-ios/
 .DS_Store
+
+# Demo screenshots from Tools/demo
+.demo/
+
+# SwiftPM build products
+Tools/DemoKit/.build/

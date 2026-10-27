@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+#
+#  demo
+#  Kōtoe
+#
+#  Renders app screens headlessly and shows a small floating panel with the
+#  progress and the remaining time. See Tools/DemoKit/README.md.
+#
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT="$ROOT/Tools/demo"
+PACKAGE="$ROOT/Tools/DemoKit"
+DEFAULT_OUT_DIR="$ROOT/.demo"
+
+if [[ -z "${DEVELOPER_DIR:-}" && -d /Applications/Xcode.app/Contents/Developer ]]; then
+    export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+fi
+
+# MARK: - Usage
+
+usage() {
+    cat <<'EOF'
+Usage: Tools/demo [scene ...] [options]
+
+Renders Kōtoe screens headlessly and shows a floating panel with progress,
+the estimated time left, and a Stop button while it works.
+
+Scenes:
+  library          Library with six sample subjects
+  library-empty    Empty library / first-run state
+  subject          Subject detail with sets and notes
+  set-editor       Set editor with cards
+  card-editor      Card editor for one card
+  study-start      Study session start screen
+  study-card       Study card face
+  study-finished   Finished study session
+  import           Bulk card import sheet
+  appearance       Icon and color editor
+  sync-log         CloudKit error log
+
+Options:
+  --out PATH          Write a single scene to PATH
+  --out-dir DIR       Directory for several scenes (default: .demo/)
+  --size WxH          Override the scene's default size
+  --scale N           Pixel scale, 1...4 (default 2)
+  --appearance MODE   light (default), dark, or system
+  --locale CODE       Force a language, e.g. en, de, es, fr, ja
+  --settle SECONDS    Wait before the first capture (default 0.6)
+  --list              List the scenes
+  --json              List the scenes as JSON
+  --help              Show this help
+
+Panel options:
+  --no-hud            Render without the progress panel
+  --compact           Start the panel collapsed into a pill
+  --open              Open the rendered image when done
+
+When several scenes are given they are all rendered in one run, and the
+panel reports progress across the whole batch:
+
+  Tools/demo library subject --open
+EOF
+}
+
+# MARK: - Strings
+
+compile_strings() {
+    local bin="$1"
+    local catalog="$ROOT/Localizable.xcstrings"
+    local stamp="$bin/en.lproj/Localizable.strings"
+
+    if [[ ! -f "$stamp" || "$catalog" -nt "$stamp" ]]; then
+        xcrun xcstringstool compile "$catalog" \
+            --output-directory "$bin" >/dev/null
+    fi
+}
+
+# MARK: - Build
+
+# SwiftPM spends about a second checking the manifest even when nothing
+# changed, so a demo only invokes it when a source file is newer than the
+# product. The same trick keeps the panel from waiting on the build.
+is_fresh() {
+    local product="$1"
+    shift
+    local binary="$PACKAGE/.build/debug/$product"
+
+    [[ -x "$binary" ]] || return 1
+
+    if [[ -n "$(
+        find "$@" -newer "$binary" -print -quit 2>/dev/null
+    )" ]]; then
+        return 1
+    fi
+
+    return 0
+}
+
+build_product() {
+    local product="$1"
+    local log="$PACKAGE/.build/${product}-build.log"
+
+    case "$product" in
+        KotoeDemo)
+            is_fresh "$product" \
+                "$ROOT/Kotoe" \
+                "$PACKAGE/Sources/KotoeDemo" \
+                "$PACKAGE/Package.swift" && return 0
+            ;;
+        KotoeDemoHUD)
+            is_fresh "$product" \
+                "$PACKAGE/Sources/KotoeDemoHUD" \
+                "$PACKAGE/Package.swift" && return 0
+            ;;
+    esac
+
+    mkdir -p "$PACKAGE/.build"
+
+    if ! xcrun swift build --package-path "$PACKAGE" \
+        --product "$product" >"$log" 2>&1; then
+        echo "$log"
+        return 1
+    fi
+
+    echo ""
+}
+
+# MARK: - Worker
+
+# Builds the renderer and renders the requested scenes. The panel runs this in
+# a child process and reads the DEMO_* markers from its output.
+run_worker() {
+    echo "DEMO_PHASE=building"
+
+    local log
+    if ! log="$(build_product KotoeDemo)"; then
+        echo "DEMO_ERROR=Building the demo renderer failed"
+        tail -20 "$log" >&2
+        return 1
+    fi
+
+    local bin="$PACKAGE/.build/debug"
+    compile_strings "$bin"
+
+    echo "DEMO_PHASE=rendering"
+    exec "$bin/KotoeDemo" "$@"
+}
+
+# MARK: - Panel
+
+run_with_panel() {
+    local log
+    if ! log="$(build_product KotoeDemoHUD)"; then
+        echo "The demo panel could not be built:" >&2
+        tail -20 "$log" >&2
+        echo "Rendering without the panel." >&2
+        run_worker "$@"
+        return $?
+    fi
+
+    local hud="$PACKAGE/.build/debug/KotoeDemoHUD"
+    local panel_args=(--cwd "$ROOT")
+    [[ "$COMPACT" -eq 1 ]] && panel_args+=(--compact)
+    [[ "$OPEN_AFTER" -eq 1 ]] && panel_args+=(--open)
+
+    exec "$hud" "${panel_args[@]}" -- "$SCRIPT" --worker "$@"
+}
+
+# MARK: - Arguments
+
+if [[ "${1:-}" == "--worker" ]]; then
+    shift
+    run_worker "$@"
+    exit $?
+fi
+
+HUD=1
+COMPACT=0
+OPEN_AFTER=0
+RENDER_ARGS=()
+
+for argument in "$@"; do
+    case "$argument" in
+        --help | -h | help)
+            usage
+            exit 0
+            ;;
+        --no-hud)
+            HUD=0
+            ;;
+        --compact)
+            COMPACT=1
+            ;;
+        --open)
+            OPEN_AFTER=1
+            ;;
+        --list | --json)
+            HUD=0
+            RENDER_ARGS+=("$argument")
+            ;;
+        *)
+            RENDER_ARGS+=("$argument")
+            ;;
+    esac
+done
+
+# A demo should never drop screenshots into the working tree by accident.
+has_output=0
+only_lists=0
+
+for argument in "${RENDER_ARGS[@]+"${RENDER_ARGS[@]}"}"; do
+    case "$argument" in
+        --out | -o | --out-dir)
+            has_output=1
+            ;;
+        --list | --json)
+            only_lists=1
+            ;;
+    esac
+done
+
+if [[ "$has_output" -eq 0 && "$only_lists" -eq 0 ]]; then
+    RENDER_ARGS+=(--out-dir "$DEFAULT_OUT_DIR")
+fi
+
+if [[ "$HUD" -eq 0 ]]; then
+    if [[ "$OPEN_AFTER" -eq 0 ]]; then
+        run_worker "${RENDER_ARGS[@]}"
+        exit $?
+    fi
+
+    capture_log="$(mktemp -t kotoe-demo)"
+    set +e
+    run_worker "${RENDER_ARGS[@]}" | tee "$capture_log"
+    status=${PIPESTATUS[0]}
+    set -e
+
+    image="$(grep -o 'DEMO_IMAGE=.*' "$capture_log" | tail -1 | cut -d= -f2-)"
+    [[ -n "$image" ]] && open "$image"
+
+    rm -f "$capture_log"
+    exit "$status"
+fi
+
+run_with_panel "${RENDER_ARGS[@]}"
