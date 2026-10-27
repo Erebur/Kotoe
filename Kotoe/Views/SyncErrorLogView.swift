@@ -140,18 +140,11 @@ struct SyncErrorLogView: View {
             }
 
             if !failure.details.isEmpty {
-                VStack(alignment: .leading, spacing: 3) {
-                    ForEach(
-                        Array(failure.details.enumerated()),
-                        id: \.offset
-                    ) { _, line in
-                        Text(verbatim: line)
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .textSelection(.enabled)
-                    }
-                }
+                detailsSection(failure.details)
+            }
+
+            if !failure.recordErrors.isEmpty {
+                recordErrorsSection(failure.recordErrors)
             }
         }
         .padding(12)
@@ -165,6 +158,89 @@ struct SyncErrorLogView: View {
                 .strokeBorder(KotoeTheme.hairline, lineWidth: 1)
         )
         .accessibilityElement(children: .combine)
+    }
+
+    /// The errors nested inside the reported one. For `CKErrorDomain` 2 this
+    /// is where the actual reason lives, so the section is never hidden.
+    private func detailsSection(
+        _ details: [CloudKitSyncMonitor.SyncFailure.Detail]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(
+                title: "contentView.syncLog.details.title",
+                systemImage: "list.bullet.indent"
+            )
+
+            ForEach(details) { detail in
+                VStack(alignment: .leading, spacing: 2) {
+                    detailLabel(detail.kind.title, count: detail.count)
+
+                    Text(verbatim: detail.technicalLine)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    /// One row per record CloudKit rejected in a partial failure, with that
+    /// record's own error underneath it.
+    private func recordErrorsSection(
+        _ records: [CloudKitSyncMonitor.SyncFailure.RecordError]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(
+                title: "contentView.syncLog.records.title",
+                systemImage: "doc.on.doc"
+            )
+
+            ForEach(records) { record in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(verbatim: record.record)
+                            .font(
+                                .system(.caption2, design: .monospaced)
+                                    .weight(.semibold)
+                            )
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if record.count > 1 {
+                            Text(verbatim: "×\(record.count)")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Text(verbatim: record.technicalLine)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    private func detailLabel(
+        _ title: LocalizedStringKey,
+        count: Int
+    ) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            if count > 1 {
+                Text(verbatim: "×\(count)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     // MARK: - Footer
@@ -187,6 +263,22 @@ struct SyncErrorLogView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
+    }
+}
+
+// MARK: - Detail Titles
+
+private extension CloudKitSyncMonitor.SyncFailure.Detail.Kind {
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .underlying: return "contentView.syncLog.details.underlying"
+        case .debugDescription: return "contentView.syncLog.details.debug"
+        case .failureReason: return "contentView.syncLog.details.reason"
+        case .recoverySuggestion:
+            return "contentView.syncLog.details.suggestion"
+        case .retryAfter: return "contentView.syncLog.details.retryAfter"
+        }
     }
 }
 
@@ -218,9 +310,51 @@ private extension CloudKitSyncMonitor.SyncFailure.Operation {
                     domain: "CKErrorDomain",
                     code: 2,
                     details: [
-                        "  NSDebugDescription: Error Domain=CKErrorDomain "
-                            + "Code=2 \"An internal server error occurred.\"",
-                        "  CKErrorRetryAfterKey: 30",
+                        .init(
+                            kind: .underlying,
+                            domain: "NSCocoaErrorDomain",
+                            code: 134060,
+                            message: "A Core Data error occurred.",
+                            count: 1
+                        ),
+                        .init(
+                            kind: .debugDescription,
+                            domain: nil,
+                            code: nil,
+                            message:
+                                "CoreData+CloudKit: Failed to export: "
+                                + "Couldn't send a batch of records.",
+                            count: 1
+                        ),
+                        .init(
+                            kind: .retryAfter,
+                            domain: nil,
+                            code: nil,
+                            message: "30 s",
+                            count: 1
+                        ),
+                    ],
+                    recordErrors: [
+                        .init(
+                            record: "CD_Flashcard_2F8C4A1E",
+                            domain: "CKErrorDomain",
+                            code: 12,
+                            message:
+                                "Invalid arguments. Cannot create field "
+                                + "'checksCapitalization' in record type "
+                                + "'CD_FlashcardSet'.",
+                            count: 1
+                        ),
+                        .init(
+                            record: "CD_FlashcardSide_91AB77D0",
+                            domain: "CKErrorDomain",
+                            code: 12,
+                            message:
+                                "Invalid arguments. Cannot create field "
+                                + "'mediaFileName' in record type "
+                                + "'CD_FlashcardSide'.",
+                            count: 2
+                        ),
                     ],
                     lastSeenAt: .now,
                     count: 3
@@ -233,6 +367,7 @@ private extension CloudKitSyncMonitor.SyncFailure.Operation {
                     domain: "CKErrorDomain",
                     code: 9,
                     details: [],
+                    recordErrors: [],
                     lastSeenAt: .now.addingTimeInterval(-900),
                     count: 1
                 ),

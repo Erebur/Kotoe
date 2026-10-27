@@ -47,12 +47,64 @@ final class CloudKitSyncMonitor {
             case other
         }
 
+        /// An error nested inside the one the mirror reported: an underlying
+        /// error, CloudKit's debug text, a failure reason, or a retry hint.
+        struct Detail: Identifiable, Equatable {
+
+            enum Kind: Equatable {
+                case underlying
+                case debugDescription
+                case failureReason
+                case recoverySuggestion
+                case retryAfter
+            }
+
+            let id = UUID()
+            let kind: Kind
+            let domain: String?
+            let code: Int?
+            let message: String
+            var count: Int
+
+            /// "CKErrorDomain 12: Invalid arguments", or the bare message when
+            /// the detail is plain text rather than an error of its own.
+            var technicalLine: String {
+                formattedErrorLine(
+                    domain: domain,
+                    code: code,
+                    message: message
+                )
+            }
+        }
+
+        /// One record CloudKit rejected inside a partial failure
+        /// (`CKErrorDomain` 2). Without these rows the outer error only says
+        /// that some records of a batch failed.
+        struct RecordError: Identifiable, Equatable {
+
+            let id = UUID()
+            let record: String
+            let domain: String?
+            let code: Int?
+            let message: String
+            var count: Int
+
+            var technicalLine: String {
+                formattedErrorLine(
+                    domain: domain,
+                    code: code,
+                    message: message
+                )
+            }
+        }
+
         let id = UUID()
         let operation: Operation
         let message: String
         let domain: String?
         let code: Int?
-        let details: [String]
+        let details: [Detail]
+        let recordErrors: [RecordError]
         var lastSeenAt: Date
         var count: Int
 
@@ -141,8 +193,18 @@ final class CloudKitSyncMonitor {
                 print("[CloudKit] \(technical)")
             }
 
-            for line in failure.details {
-                print("[CloudKit] \(line.trimmingCharacters(in: .whitespaces))")
+            for detail in failure.details {
+                print(
+                    "[CloudKit] \(detail.kind.logName): "
+                        + detail.technicalLine
+                )
+            }
+
+            for record in failure.recordErrors {
+                print(
+                    "[CloudKit] record \(record.record): "
+                        + record.technicalLine
+                )
             }
 
             return
@@ -202,12 +264,25 @@ final class CloudKitSyncMonitor {
         let message = nsError?.localizedDescription
             ?? String(localized: "contentView.footer.sync.failed")
 
+        var details: [SyncFailure.Detail] = []
+        var recordErrors: [SyncFailure.RecordError] = []
+
+        if let nsError {
+            collect(
+                nsError,
+                depth: 0,
+                details: &details,
+                recordErrors: &recordErrors
+            )
+        }
+
         return SyncFailure(
             operation: operation(for: type),
             message: message,
             domain: nsError?.domain,
             code: nsError?.code,
-            details: detailLines(for: nsError),
+            details: details,
+            recordErrors: recordErrors,
             lastSeenAt: date,
             count: 1
         )
@@ -224,63 +299,211 @@ final class CloudKitSyncMonitor {
         }
     }
 
-    /// Turns an NSError into the extra lines shown under its message:
-    /// underlying errors, CloudKit's partial errors per record, and a retry
-    /// hint if the server sent one.
-    private static func detailLines(
-        for error: NSError?,
-        depth: Int = 0
-    ) -> [String] {
-        guard let error, depth < 4 else { return [] }
-
-        let indent = String(repeating: "  ", count: depth)
-        var lines: [String] = []
+    /// Walks everything CloudKit and Core Data attach to an error: underlying
+    /// errors, Core Data's detailed errors, the per-record errors of a partial
+    /// failure, the debug description, and the retry hint.
+    ///
+    /// `depth` bounds the walk because an error chain can be several layers
+    /// deep; identical entries are grouped so a batch that rejects the same
+    /// record repeatedly cannot flood the log.
+    private static func collect(
+        _ error: NSError,
+        depth: Int,
+        details: inout [SyncFailure.Detail],
+        recordErrors: inout [SyncFailure.RecordError]
+    ) {
+        guard depth < 6 else { return }
 
         if depth > 0 {
-            lines.append(
-                "\(indent)\(error.domain) \(error.code): "
-                    + error.localizedDescription
-            )
-        }
-
-        if let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
-            lines.append(
-                contentsOf: detailLines(for: underlying, depth: depth + 1)
+            append(
+                .underlying,
+                domain: error.domain,
+                code: error.code,
+                message: error.localizedDescription,
+                to: &details
             )
         }
 
         if let debug = error.userInfo[NSDebugDescriptionErrorKey] as? String {
-            lines.append("\(indent)\(debug)")
+            append(
+                .debugDescription,
+                domain: nil,
+                code: nil,
+                message: debug,
+                to: &details
+            )
         }
 
+        if let reason = error.userInfo[NSLocalizedFailureReasonErrorKey]
+            as? String
+        {
+            append(
+                .failureReason,
+                domain: nil,
+                code: nil,
+                message: reason,
+                to: &details
+            )
+        }
+
+        if let suggestion = error.userInfo[
+            NSLocalizedRecoverySuggestionErrorKey
+        ] as? String {
+            append(
+                .recoverySuggestion,
+                domain: nil,
+                code: nil,
+                message: suggestion,
+                to: &details
+            )
+        }
+
+        if let retryAfter = error.userInfo[CKErrorRetryAfterKey] as? NSNumber {
+            append(
+                .retryAfter,
+                domain: nil,
+                code: nil,
+                message: "\(Int(retryAfter.doubleValue.rounded())) s",
+                to: &details
+            )
+        }
+
+        // A partial failure (`CKErrorDomain` 2) only says that some records of
+        // a batch were rejected. The reason lives here, one error per record.
         if let partial = error.userInfo[CKPartialErrorsByItemIDKey]
-            as? [AnyHashable: Error]
+            as? [AnyHashable: Any]
         {
             let sorted = partial.sorted {
-                String(describing: $0.key) < String(describing: $1.key)
+                recordName(for: $0.key) < recordName(for: $1.key)
             }
 
-            for (itemID, itemError) in sorted {
-                let nsItemError = itemError as NSError
-                lines.append(
-                    "\(indent)  \(String(describing: itemID)): "
-                        + "\(nsItemError.domain) \(nsItemError.code): "
-                        + nsItemError.localizedDescription
+            for (itemID, value) in sorted {
+                guard let itemError = value as? NSError else { continue }
+
+                appendRecordError(
+                    itemID: itemID,
+                    error: itemError,
+                    to: &recordErrors
                 )
             }
         }
 
-        if let retryAfter = error.userInfo[CKErrorRetryAfterKey] as? NSNumber {
-            lines.append(
-                "\(indent)retry after: \(retryAfter.doubleValue) s"
+        if let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+            collect(
+                underlying,
+                depth: depth + 1,
+                details: &details,
+                recordErrors: &recordErrors
             )
         }
 
-        if lines.count > 20 {
-            return Array(lines.prefix(20)) + ["…"]
+        if let many = error.userInfo[NSDetailedErrorsKey] as? [NSError] {
+            for inner in many {
+                collect(
+                    inner,
+                    depth: depth + 1,
+                    details: &details,
+                    recordErrors: &recordErrors
+                )
+            }
+        }
+    }
+
+    private static func append(
+        _ kind: SyncFailure.Detail.Kind,
+        domain: String?,
+        code: Int?,
+        message: String,
+        to details: inout [SyncFailure.Detail]
+    ) {
+        if let index = details.firstIndex(where: {
+            $0.kind == kind
+                && $0.domain == domain
+                && $0.code == code
+                && $0.message == message
+        }) {
+            details[index].count += 1
+            return
         }
 
-        return lines
+        details.append(
+            SyncFailure.Detail(
+                kind: kind,
+                domain: domain,
+                code: code,
+                message: message,
+                count: 1
+            )
+        )
+    }
+
+    private static func appendRecordError(
+        itemID: AnyHashable,
+        error: NSError,
+        to recordErrors: inout [SyncFailure.RecordError]
+    ) {
+        let record = recordName(for: itemID)
+        let message = error.localizedDescription
+
+        if let index = recordErrors.firstIndex(where: {
+            $0.record == record
+                && $0.domain == error.domain
+                && $0.code == error.code
+                && $0.message == message
+        }) {
+            recordErrors[index].count += 1
+            return
+        }
+
+        recordErrors.append(
+            SyncFailure.RecordError(
+                record: record,
+                domain: error.domain,
+                code: error.code,
+                message: message,
+                count: 1
+            )
+        )
+    }
+
+    /// Core Data names its CloudKit records `CD_<Entity>_<UUID>`. Keeping the
+    /// raw name lets a failing record be matched in the CloudKit Console.
+    private static func recordName(for itemID: AnyHashable) -> String {
+        if let id = itemID.base as? CKRecord.ID {
+            return id.recordName
+        }
+
+        if let zone = itemID.base as? CKRecordZone.ID {
+            return zone.zoneName
+        }
+
+        return String(describing: itemID.base)
+    }
+}
+
+/// "CKErrorDomain 12: Invalid arguments", or the bare message when the error
+/// carries no domain or code.
+private func formattedErrorLine(
+    domain: String?,
+    code: Int?,
+    message: String
+) -> String {
+    guard let domain, let code else { return message }
+    return "\(domain) \(code): \(message)"
+}
+
+// MARK: - Detail Logging
+
+private extension CloudKitSyncMonitor.SyncFailure.Detail.Kind {
+
+    var logName: String {
+        switch self {
+        case .underlying: return "underlying"
+        case .debugDescription: return "debug"
+        case .failureReason: return "reason"
+        case .recoverySuggestion: return "suggestion"
+        case .retryAfter: return "retry after"
+        }
     }
 }
 

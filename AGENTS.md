@@ -464,11 +464,19 @@ in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
   part of the scroll view, so it stays readable at any scroll position.
 - The footer line is a button that opens `SyncErrorLogView`: every distinct
   failure from the current session, newest first, with operation, time,
-  message, error domain/code, and CloudKit's underlying errors, partial errors
-  per record, and retry hint when present. Repeated failures of the same
-  operation and error are grouped with a count, the list is capped at 100
-  entries, and **Clear** empties it. The log is in memory only, so it starts
-  empty after a relaunch; text is selectable for copying into a bug report.
+  message, and error domain/code. `CloudKitSyncMonitor` walks the error chain
+  and keeps two lists per failure: **Details** (underlying errors, Core Data's
+  `NSDetailedErrorsKey`, the debug description, failure reason and recovery
+  suggestion, and the retry hint) and **Failed records** (CloudKit's
+  `CKPartialErrorsByItemIDKey`, one row per record with that record's own
+  error). The record row shows the raw `CD_<Entity>_<UUID>` record name so it
+  can be matched in the CloudKit Console. `CKErrorDomain` 2 is
+  `CKError.partialFailure`: the outer error only says a batch was partly
+  rejected, and the real reason is in the Failed records rows. Identical
+  details and records are grouped with a count; repeated failures of the same
+  operation and error are grouped too, the list is capped at 100 entries, and
+  **Clear** empties it. The log is in memory only, so it starts empty after a
+  relaunch; text is selectable for copying into a bug report.
 - Imports run through `NSPersistentStoreRemoteChange` and normally refresh
   `@Query` results without extra work. When data looks missing, relaunch before
   assuming it never synced — TN3164 lists this first.
