@@ -19,16 +19,23 @@ struct StudyCardView: View {
     let showsHint: Bool
     let allowsSwipeAnswer: Bool
     let flipSignal: Int
+    /// Bumped by the marking buttons so the card can play the same fly-off
+    /// animation as a swipe before it reports the answer.
+    let exitSignal: Int
+    let exitCorrect: Bool
     let onFlipChanged: (Bool) -> Void
     let onAnswer: (Bool) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var isFlipped = false
+    @State private var flipAngle: Double = 0
+    @State private var isLeaving = false
     @State private var dragOffset: CGSize = .zero
     @State private var dragDirection: Int = 0 // 1 = correct, -1 = incorrect, 0 = none
 
     private let cornerRadius: CGFloat = 28
+    private let flipDuration: Double = 0.5
 
     var body: some View {
         ZStack {
@@ -39,26 +46,37 @@ struct StudyCardView: View {
                 tint: tint,
                 showsHint: showsHint
             )
-            .opacity(isFlipped ? 0 : 1)
+            .modifier(FlipFace(angle: flipAngle, isBack: false))
+            .allowsHitTesting(!isFlipped)
+            .accessibilityHidden(isFlipped)
 
-            if isFlipped {
-                face(
-                    side: card.back,
-                    label: "studyView.card.back",
-                    symbol: "sparkles",
-                    tint: KotoeTheme.success,
-                    showsHint: false
-                )
-                .transition(.opacity)
-            }
+            face(
+                side: card.back,
+                label: "studyView.card.back",
+                symbol: "sparkles",
+                tint: KotoeTheme.success,
+                showsHint: showsHint
+            )
+            .modifier(FlipFace(angle: flipAngle, isBack: true))
+            .allowsHitTesting(isFlipped)
+            .accessibilityHidden(!isFlipped)
         }
-        .animation(.snappy(duration: 0.28), value: isFlipped)
         .contentShape(
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         )
+        .overlay {
+            if let swipeTint {
+                RoundedRectangle(
+                    cornerRadius: cornerRadius,
+                    style: .continuous
+                )
+                .fill(swipeTint.opacity(0.34 * swipeProgress))
+                .allowsHitTesting(false)
+            }
+        }
         .offset(x: dragOffset.width, y: dragOffset.height)
         .rotationEffect(.degrees(dragOffset.width / 18))
-        .scaleEffect(1 - abs(dragOffset.width) / 1400)
+        .opacity(isLeaving ? 0 : 1 - swipeProgress * 0.45)
         .gesture(
             DragGesture(minimumDistance: 24)
                 .onChanged { value in
@@ -85,20 +103,28 @@ struct StudyCardView: View {
                     }
 
                     let correct = dx > 0
-                    let direction: CGFloat = correct ? 1 : -1
-
-                    withAnimation(.snappy(duration: 0.22)) {
-                        dragOffset = CGSize(width: direction * 750, height: 0)
-                    }
-
-                    // Let the card fly off, then tell the parent to advance.
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-                        onAnswer(correct)
-                    }
+                    flyOff(correct: correct, dy: dy)
                 }
         )
         .onChange(of: flipSignal) {
             toggle()
+        }
+        .onChange(of: exitSignal) {
+            flyOff(correct: exitCorrect)
+        }
+    }
+
+    /// How far the drag has travelled toward a committed swipe (0...1).
+    private var swipeProgress: CGFloat {
+        min(max(abs(dragOffset.width) - 40, 0) / 260, 1)
+    }
+
+    /// Green or red wash that previews the outcome while dragging.
+    private var swipeTint: Color? {
+        switch dragDirection {
+        case 1: return KotoeTheme.success
+        case -1: return KotoeTheme.failure
+        default: return nil
         }
     }
 
@@ -224,11 +250,63 @@ struct StudyCardView: View {
         )
     }
 
-    private func toggle() {
+    /// Plays the fly-off and fade that a committed swipe uses, then reports
+    /// the answer once the card has left. Marking buttons use this too.
+    private func flyOff(correct: Bool, dy: CGFloat = 0) {
+        guard !isLeaving else { return }
+
+        dragDirection = correct ? 1 : -1
+
         withAnimation(.snappy(duration: 0.28)) {
-            isFlipped.toggle()
+            isLeaving = true
+            dragOffset = CGSize(
+                width: (correct ? 1 : -1) * 1200,
+                height: dy * 0.15
+            )
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+            onAnswer(correct)
+        }
+    }
+
+    private func toggle() {
+        isFlipped.toggle()
+
+        withAnimation(.easeInOut(duration: flipDuration)) {
+            flipAngle = isFlipped ? 180 : 0
         }
 
         onFlipChanged(isFlipped)
+    }
+}
+
+// MARK: - Flip
+
+/// Turns one face of the card around its vertical axis and hides it once it
+/// passes 90°, so the mirrored reverse of a face never shows through.
+private struct FlipFace: ViewModifier, Animatable {
+
+    var angle: Double
+    var isBack: Bool
+
+    var animatableData: Double {
+        get { angle }
+        set { angle = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        // The back face starts turned away by 180°, so both faces share the
+        // same animated angle and arrive upright at the end of the turn.
+        let faceAngle = isBack ? angle + 180 : angle
+        let isVisible = isBack ? angle >= 90 : angle < 90
+
+        content
+            .rotation3DEffect(
+                .degrees(faceAngle),
+                axis: (x: 0, y: 1, z: 0),
+                perspective: 0.55
+            )
+            .opacity(isVisible ? 1 : 0)
     }
 }

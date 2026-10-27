@@ -71,6 +71,9 @@ struct StudyView: View {
     @State private var incorrect = 0
     @State private var isFlipped = false
     @State private var flipSignal = 0
+    @State private var exitSignal = 0
+    @State private var exitCorrect = true
+    @State private var isMarking = false
     @State private var generation = 0
 
     // MARK: Session Setup
@@ -197,7 +200,9 @@ struct StudyView: View {
                         tint: tint,
                         showsHint: sessionMode == .guess,
                         allowsSwipeAnswer: sessionMode == .guess,
-                        flipSignal: flipSignal
+                        flipSignal: flipSignal,
+                        exitSignal: exitSignal,
+                        exitCorrect: exitCorrect
                     ) { flipped in
                         isFlipped = flipped
                     } onAnswer: { correct in
@@ -233,7 +238,10 @@ struct StudyView: View {
                     lastTypedCorrect: lastTypedCorrect,
                     tint: tint,
                     onNext: {
-                        answer(correct: true)
+                        mark(correct: true)
+                    },
+                    onIncorrect: {
+                        mark(correct: false)
                     },
                     onSubmit: submitTypedAnswer
                 )
@@ -273,6 +281,7 @@ struct StudyView: View {
             incorrect = 0
             isFlipped = false
             flipSignal = 0
+            isMarking = false
             generation += 1
             typedAnswer = NSAttributedString()
             lastTypedCard = nil
@@ -281,14 +290,27 @@ struct StudyView: View {
         }
     }
 
-    /// Reveals the back of the current card in guessing mode.
+    /// Reveals the back of the current card in guessing mode, and flips it back
+    /// to the front when tapped again.
     private func flipCurrentCard() {
-        guard !isFlipped, !queue.isEmpty else { return }
+        guard !queue.isEmpty else { return }
         flipSignal += 1
+    }
+
+    /// Starts the card's fly-off animation through `exitSignal`. The card calls
+    /// back into `answer` once it has left the screen.
+    private func mark(correct: Bool) {
+        guard !isMarking, !queue.isEmpty else { return }
+
+        isMarking = true
+        exitCorrect = correct
+        exitSignal += 1
     }
 
     private func answer(correct: Bool) {
         guard let card = queue.first else { return }
+
+        isMarking = false
 
         withAnimation(.snappy(duration: 0.36)) {
             queue.removeFirst()
@@ -305,6 +327,8 @@ struct StudyView: View {
             generation += 1
             isFlipped = false
             typedAnswer = NSAttributedString()
+            // A manual advance cancels the pending automatic verdict step.
+            lastTypedCard = nil
         }
 
         record(correct, for: card)
@@ -410,6 +434,8 @@ struct StudyView: View {
             showsHint: true,
             allowsSwipeAnswer: true,
             flipSignal: 0,
+            exitSignal: 0,
+            exitCorrect: true,
             onFlipChanged: { _ in },
             onAnswer: { _ in }
         )

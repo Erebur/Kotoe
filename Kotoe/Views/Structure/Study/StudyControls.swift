@@ -21,30 +21,61 @@ struct StudyControls: View {
     let tint: Color
 
     let onNext: () -> Void
+    let onIncorrect: () -> Void
     let onSubmit: () -> Void
 
     var tapIndicators: some View {
-        // Guessing mode: no "Reveal answer" button. Hints guide the user
-        // to tap to flip and swipe to mark the card correct or incorrect.
-        HStack(spacing: 10) {
-            Image(systemName: "arrow.left")
-                .font(.caption2.weight(.semibold))
-            Text("studyView.card.swipeIncorrect")
-                .font(.caption2.weight(.semibold))
-            Spacer()
-            Image(systemName: "hand.tap")
-                .font(.caption2.weight(.semibold))
-            Text("studyView.card.tapToReveal")
-                .font(.caption2.weight(.semibold))
-            Spacer()
-            Text("studyView.card.swipeCorrect")
-                .font(.caption2.weight(.semibold))
-            Image(systemName: "arrow.right")
-                .font(.caption2.weight(.semibold))
-        }
-        .foregroundStyle(.secondary)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        // Guessing mode: the swipe hints double as buttons for pointer users.
+        // They stay deliberately plain so they read as hints, not controls.
+        // Tapping the card to flip is hinted at on the card itself.
+        HStack(spacing: 12) {
+            markButton(
+                title: "studyView.card.swipeIncorrect",
+                symbol: "arrow.left",
+                symbolFirst: true,
+                alignment: .leading,
+                action: onIncorrect
+            )
 
+            markButton(
+                title: "studyView.card.swipeCorrect",
+                symbol: "arrow.right",
+                symbolFirst: false,
+                alignment: .trailing,
+                action: onNext
+            )
+        }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private func markButton(
+        title: LocalizedStringKey,
+        symbol: String,
+        symbolFirst: Bool,
+        alignment: Alignment,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                if symbolFirst {
+                    Image(systemName: symbol)
+                }
+
+                Text(title)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+
+                if !symbolFirst {
+                    Image(systemName: symbol)
+                }
+            }
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: alignment)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableCardStyle())
     }
 
     var textField: some View {
@@ -62,24 +93,34 @@ struct StudyControls: View {
     }
 
     var body: some View {
-        if isFlipped {
-            HStack(spacing: 12) {
-                Button {
-                    onNext()
-                } label: {
-                    Label("studyView.controls.next", systemImage: "arrowshape.forward.fill")
-                        .labelStyle(CenteredLabelStyle())
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(StudyActionButtonStyle(tint: tint))
-                .keyboardShortcut(.escape)
+        if sessionMode == .type {
+            if isFlipped {
+                nextButton
+            } else {
+                textField
             }
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        } else if sessionMode == .type {
-            textField
         } else {
+            // The marking buttons stay in place before and after the reveal.
             tapIndicators
         }
+    }
+
+    private var nextButton: some View {
+        HStack(spacing: 12) {
+            Button {
+                onNext()
+            } label: {
+                Label(
+                    "studyView.controls.next",
+                    systemImage: "arrowshape.forward.fill"
+                )
+                .labelStyle(CenteredLabelStyle())
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(StudyActionButtonStyle(tint: tint))
+            .keyboardShortcut(.escape)
+        }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 }
 
@@ -95,6 +136,7 @@ struct StudyControls: View {
             lastTypedCorrect: true,
             tint: KotoeTheme.accent,
             onNext: { },
+            onIncorrect: { },
             onSubmit: {}
         )
         Divider()
@@ -106,6 +148,7 @@ struct StudyControls: View {
             lastTypedCorrect: true,
             tint: KotoeTheme.accent,
             onNext: { },
+            onIncorrect: { },
             onSubmit: {}
         )
         Divider()
@@ -117,6 +160,19 @@ struct StudyControls: View {
             lastTypedCorrect: true,
             tint: KotoeTheme.accent,
             onNext: { },
+            onIncorrect: { },
+            onSubmit: {}
+        )
+        Divider()
+        StudyControls(
+            isFlipped: true,
+            sessionMode: .type,
+            checksCapitalization: true,
+            typedAnswer: .constant(NSAttributedString()),
+            lastTypedCorrect: true,
+            tint: KotoeTheme.accent,
+            onNext: { },
+            onIncorrect: { },
             onSubmit: {}
         )
     }

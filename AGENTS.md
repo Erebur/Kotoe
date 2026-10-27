@@ -483,22 +483,25 @@ card row opens the editor for an existing one.
   begins through `beginSession()`.
 - The toolbar menu offers New Session (back to the start screen), Restart,
   and Restart Shuffled. Restart keeps the mode that started the session.
-- Guess mode shows the front. A tap (or Space) reveals the back. Swiping
-  right marks the card **Got It**, swiping left marks it **Again**; the
-  drag is horizontal with a ~40 pt threshold and the card flies off in the
-  swipe direction with a matching green/red tint animation.
-- The **"Reveal answer" button is gone**. Instead, hints ("Tap to reveal",
-  "Swipe right: correct", "Swipe left: incorrect") guide the user before the
-  card is flipped.
+- Guess mode shows the front. A tap flips the card between front and back in
+  both directions with a 3D turn around the vertical axis (`FlipFace` hides a
+  face once it passes 90°, so its mirrored reverse never shows). Swiping right
+  marks the card **Got It**, swiping left marks it **Again**; the drag is
+  horizontal with a ~40 pt threshold, washes the card green or red, and on
+  release the card flies off while fading out.
+- The **"Reveal answer" button is gone**, and the bottom tap hint with it — the
+  card itself carries the "Tap to flip" hint on both faces. The two swipe hints
+  below the card ("Swipe left: incorrect", "Swipe right: correct") are plain
+  grey buttons, so a card can be marked without dragging; pressing one plays
+  the same card fly-off before the session advances.
 - Type mode shows the front with an answer field. Submit (or Return)
   automatically judges the answer against the back (respecting the
   capitalisation setting) with a small correct/incorrect animation, then
   advances to the next card.
-- **Again**/**Got It** buttons (keys 1 and 2) stay available whenever the
-  answer is revealed in Guess mode; they are the reliable marking path on
-  macOS, where swiping with a mouse is awkward. "Again" re-queues the card at
-  the end, "Got It" counts it as learned, and the session ends when the queue
-  drains.
+- In Guess mode the same marking hints stay below the card before and after the
+  reveal, so marking works with a mouse in either state. Correct counts the
+  card as learned, Incorrect re-queues it. In Type mode the answer field is
+  replaced by a Next Card button (Escape) while the verdict lingers.
 - Every mark updates `isKnown` / `lastReviewedAt`, appends a
   `FlashcardReview`, and saves the context so the state survives relaunch
   and syncs through iCloud.
