@@ -31,8 +31,8 @@ repetition scheduling, archiving, export, search, and tests do not.
 | Xcode | 27.1 (`objectVersion = 77`) |
 | Bundle ID | `com.erebur.kotoe`, team `XMGF5HVWMW` |
 | Localization | String Catalog; English source plus de, es, fr, ja |
-| Dependencies | SwiftMath 1.7.3 (SPM) for LaTeX typesetting. No CocoaPods or generated code. |
-| Libraries used | SwiftUI, SwiftData, PencilKit, PhotosUI, PDFKit, ImageIO, SwiftMath |
+| Dependencies | SwiftMath 1.7.3 (SPM) for LaTeX typesetting and HighlighterSwift 3.1.0 (SPM, wraps highlight.js 11.11.1) for code syntax highlighting. No CocoaPods or generated code. |
+| Libraries used | SwiftUI, SwiftData, PencilKit, PhotosUI, PDFKit, ImageIO, JavaScriptCore, SwiftMath, Highlighter |
 
 The Xcode project uses a **file-system-synchronized group**, so any `.swift`
 file added anywhere under `Kotoe/` is compiled automatically. Do **not**
@@ -64,8 +64,9 @@ xcodebuild -project "Kōtoe.xcodeproj" -scheme "Kōtoe" \
   -destination 'platform=macOS,arch=arm64' build
 ```
 
-The first build resolves `SwiftMath` from GitHub, so it needs network access
-(the package is cached afterwards in DerivedData). Open in Xcode:
+The first build resolves `SwiftMath` and `HighlighterSwift` from GitHub, so it
+needs network access (the packages are cached afterwards in DerivedData). Open
+in Xcode:
 `open "Kōtoe.xcodeproj"`.
 
 Available simulators include `iPhone 17`, `iPad (A16)`, and `iPad Air 11-inch
@@ -326,6 +327,9 @@ Kotoe/
       MarkdownFormatter.swift    markdown → NSAttributedString converter; styles
                                   editor source and renders card output (lists,
                                   code, links, LaTeX via SwiftMath)
+      CodeSyntaxHighlighter.swift fenced code colors via highlight.js
+                                  (HighlighterSwift); language tags, aliases,
+                                  light/dark Xcode themes, span cache
       RichTextStyleGuideView.swift  style guide sheet with a split style sample
       RichTextLabel.swift        read-only native label for rendered attributed
                                   text, including inline LaTeX images
@@ -440,6 +444,15 @@ card row opens the editor for an existing one.
   stored on the owning model (see **Data model**). The text gets a matching
   bottom inset so the last line can still scroll clear of the chip. Transient
   inputs such as the typed study answer keep `showsStyleControls` off.
+- Fenced code blocks are syntax highlighted with highlight.js through
+  HighlighterSwift (about 185 languages). The info string after the backticks
+  names the language (`swift`, `py`, `sql`, `c++`, …); an untagged fence uses
+  highlight.js language detection for blocks up to 4,000 characters. Only the
+  token colors are taken from the library, so the field's monospaced font,
+  code background and spacing stay unchanged. Colors follow the view's
+  light/dark appearance and apply to both the source editor and the rendered
+  preview/cards; inline markdown styling is skipped inside fences so it cannot
+  overwrite the syntax colors.
 - The file picker accepts every file (`UTType.item`); `ImportedFile` decides
   what the file becomes — a PDF stays a PDF, an image is stored as an image,
   a text file becomes text. Picking a file also switches the side's
@@ -686,6 +699,13 @@ text — do not paste it into Swift code or the string catalog.
   `NSTextAttachment`. `RichTextLabel` wraps `UILabel`/`NSTextField` because
   SwiftUI `Text` drops attachments. The math image is rasterized, so it does
   not follow Dynamic Type after rendering.
+- Code highlighting runs synchronously through JavaScriptCore, and the
+  HighlighterSwift engine is not thread-safe. `CodeSyntaxHighlighter`
+  serializes access with a lock and caches spans by code, language and
+  appearance. A result is used only when `highlighted.string == code`; its
+  font and background are discarded. `styleBlocks` returns the fenced ranges
+  that `styleInline` must skip. `rendered(..., highlightingCode: false)` keeps
+  summaries and typed-answer judging from loading the JS engine at all.
 - The rich text field's split view is side by side on macOS and stacked on
   iOS. In preview and split the editor stays mounted but invisible so its
   measured height keeps sizing the field; the hidden copy is read-only and
@@ -710,6 +730,9 @@ text — do not paste it into Swift code or the string catalog.
   plus the `FlashcardContentType` enum and the side editor's picker.
 - Change markdown conventions or LaTeX rendering: `Views/Helper/MarkdownFormatter.swift`
   (`styledSource` for the editor, `rendered` for cards).
+- Change fenced-code highlighting, language aliases or code themes:
+  `Views/Helper/CodeSyntaxHighlighter.swift` (`xcode` for light, `xcode-dusk`
+  for dark).
 - Change the editor's typing behavior (list continuation, focus, sizing) or
   the rich text label: `Views/Helper/RichTextField.swift` and
   `Views/Helper/RichTextLabel.swift`.
@@ -757,6 +780,10 @@ text — do not paste it into Swift code or the string catalog.
   (dimmed) and math shows its source while editing. Math is typeset only in
   rendered output (cards) through SwiftMath, so a build needs network access
   the first time the package is resolved.
+- Code highlighting covers fenced blocks only: no line numbers, no colors for
+  inline code spans, and untagged blocks over 4,000 characters stay plain.
+  Colors use the fixed Xcode light/dark themes and do not follow a subject's
+  tint.
 - CloudKit sync failures are logged and listed behind the library footer; the
   log only covers the current session and there is no retry button, no
   `CKContainer.accountStatus` check, and the model container still calls

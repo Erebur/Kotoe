@@ -11,6 +11,7 @@
 		D5ADAEA03086B23B00FAAC41 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = D5ADAE9F3086B23B00FAAC41 /* AppIcon.icon */; };
 		D5B000002F1A0001000000001 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = D5B000002F1A0001000000002 /* LICENSE */; };
 		D5C0FFEE2F1A0001000000A3 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = D5C0FFEE2F1A0001000000A2 /* SwiftMath */; };
+		D5C0FFEE2F1A0001000000B3 /* Highlighter in Frameworks */ = {isa = PBXBuildFile; productRef = D5C0FFEE2F1A0001000000B2 /* Highlighter */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -47,6 +48,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D5C0FFEE2F1A0001000000A3 /* SwiftMath in Frameworks */,
+				D5C0FFEE2F1A0001000000B3 /* Highlighter in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -93,6 +95,7 @@
 			name = "Kōtoe";
 			packageProductDependencies = (
 				D5C0FFEE2F1A0001000000A2 /* SwiftMath */,
+				D5C0FFEE2F1A0001000000B2 /* Highlighter */,
 			);
 			productName = Kotoe;
 			productReference = D512862030856EF500DBA69D /* Kōtoe.app */;
@@ -128,6 +131,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				D5C0FFEE2F1A0001000000A1 /* XCRemoteSwiftPackageReference "SwiftMath" */,
+				D5C0FFEE2F1A0001000000B1 /* XCRemoteSwiftPackageReference "HighlighterSwift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D512862130856EF500DBA69D /* Products */;
@@ -425,6 +429,14 @@
 				version = 1.7.3;
 			};
 		};
+		D5C0FFEE2F1A0001000000B1 /* XCRemoteSwiftPackageReference "HighlighterSwift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/smittytone/HighlighterSwift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.1.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -432,6 +444,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D5C0FFEE2F1A0001000000A1 /* XCRemoteSwiftPackageReference "SwiftMath" */;
 			productName = SwiftMath;
+		};
+		D5C0FFEE2F1A0001000000B2 /* Highlighter */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D5C0FFEE2F1A0001000000B1 /* XCRemoteSwiftPackageReference "HighlighterSwift" */;
+			productName = Highlighter;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

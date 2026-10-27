@@ -69,6 +69,8 @@ struct RichTextField: View {
     @State private var splitEditorHeight: CGFloat = 0
     @State private var showsStyleGuide = false
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
             content
@@ -119,6 +121,10 @@ struct RichTextField: View {
         displayMode?.wrappedValue ?? .editor
     }
 
+    private var appearance: MarkdownAppearance {
+        colorScheme == .dark ? .dark : .light
+    }
+
     // MARK: Content
 
     @ViewBuilder
@@ -159,7 +165,8 @@ struct RichTextField: View {
             submitsOnReturn: submitsOnReturn,
             onSubmit: onSubmit,
             isEditable: editable ?? isEditable,
-            bottomInset: floatingSwitch ? 30 : 0
+            bottomInset: floatingSwitch ? 30 : 0,
+            appearance: appearance
         )
         // Reserve room for the info button without shifting the text's left
         // edge; the text views inset both sides equally.
@@ -212,7 +219,8 @@ struct RichTextField: View {
             style: MarkdownFormatter.Style(
                 baseFont: RichTextEditor.systemFont,
                 alignment: .natural,
-                rendersMath: true
+                rendersMath: true,
+                appearance: appearance
             )
         )
     }
@@ -436,13 +444,17 @@ struct RichTextEditor: NSViewRepresentable {
     let onSubmit: () -> Void
     let isEditable: Bool
     let bottomInset: CGFloat
+    let appearance: MarkdownAppearance
 
     static var systemFont: FormatFont {
         NSFont.systemFont(ofSize: NSFont.systemFontSize)
     }
 
-    static var style: MarkdownFormatter.Style {
-        MarkdownFormatter.Style(baseFont: systemFont)
+    var style: MarkdownFormatter.Style {
+        MarkdownFormatter.Style(
+            baseFont: Self.systemFont,
+            appearance: appearance
+        )
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -490,7 +502,7 @@ struct RichTextEditor: NSViewRepresentable {
             height: CGFloat.greatestFiniteMagnitude
         )
         textView.textContainerInset = NSSize(width: 13, height: 11)
-        textView.typingAttributes = MarkdownFormatter.typingAttributes(for: Self.style)
+        textView.typingAttributes = MarkdownFormatter.typingAttributes(for: style)
 
         scrollView.documentView = textView
 
@@ -513,6 +525,12 @@ struct RichTextEditor: NSViewRepresentable {
             return
         }
         context.coordinator.bindings = self
+
+        if context.coordinator.styledAppearance != appearance {
+            DispatchQueue.main.async {
+                context.coordinator.restyle()
+            }
+        }
 
         textView.isEditable = isEditable
         textView.isSelectable = isEditable
@@ -548,6 +566,7 @@ struct RichTextEditor: NSViewRepresentable {
         weak var textView: NSTextView?
         var bindings: RichTextEditor?
         var isProgrammaticChange = false
+        var styledAppearance: MarkdownAppearance?
 
         /// Re-applies markdown attributes without touching a single character.
         func restyle() {
@@ -555,7 +574,8 @@ struct RichTextEditor: NSViewRepresentable {
             guard !textView.hasMarkedText() else { return }
             guard let storage = textView.textStorage else { return }
 
-            let style = RichTextEditor.style
+            let style = bindings.style
+            styledAppearance = bindings.appearance
             let styled = MarkdownFormatter.styledSource(
                 storage.string,
                 style: style
@@ -664,13 +684,17 @@ struct RichTextEditor: UIViewRepresentable {
     let onSubmit: () -> Void
     let isEditable: Bool
     let bottomInset: CGFloat
+    let appearance: MarkdownAppearance
 
     static var systemFont: FormatFont {
         UIFont.preferredFont(forTextStyle: .body)
     }
 
-    static var style: MarkdownFormatter.Style {
-        MarkdownFormatter.Style(baseFont: systemFont)
+    var style: MarkdownFormatter.Style {
+        MarkdownFormatter.Style(
+            baseFont: Self.systemFont,
+            appearance: appearance
+        )
     }
 
     func makeUIView(context: Context) -> UITextView {
@@ -705,7 +729,7 @@ struct RichTextEditor: UIViewRepresentable {
         textView.smartInsertDeleteType = .default
         textView.allowsEditingTextAttributes = true
         textView.typingAttributes = MarkdownFormatter.typingAttributes(
-            for: Self.style
+            for: style
         )
 
         textView.delegate = context.coordinator
@@ -725,6 +749,12 @@ struct RichTextEditor: UIViewRepresentable {
     func updateUIView(_ textView: UITextView, context: Context) {
         context.coordinator.textView = textView
         context.coordinator.bindings = self
+
+        if context.coordinator.styledAppearance != appearance {
+            DispatchQueue.main.async {
+                context.coordinator.restyle()
+            }
+        }
 
         textView.isEditable = isEditable
         textView.isSelectable = isEditable
@@ -759,6 +789,7 @@ struct RichTextEditor: UIViewRepresentable {
         weak var textView: UITextView?
         var bindings: RichTextEditor?
         var isProgrammaticChange = false
+        var styledAppearance: MarkdownAppearance?
 
         /// Re-applies markdown attributes without touching a single character.
         func restyle() {
@@ -766,7 +797,8 @@ struct RichTextEditor: UIViewRepresentable {
             guard textView.markedTextRange == nil else { return }
 
             let storage = textView.textStorage
-            let style = RichTextEditor.style
+            let style = bindings.style
+            styledAppearance = bindings.appearance
             let styled = MarkdownFormatter.styledSource(
                 storage.string,
                 style: style

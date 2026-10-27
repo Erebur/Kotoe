@@ -116,6 +116,9 @@ enum MarkdownFormatter {
         /// the editor keeps their source visible.
         var rendersMath: Bool
 
+        /// Picks the syntax color theme for fenced code blocks.
+        var appearance: MarkdownAppearance
+
         init(
             baseFont: FormatFont,
             textColor: FormatColor = MarkdownColors.label,
@@ -125,7 +128,8 @@ enum MarkdownFormatter {
             alignment: NSTextAlignment = .natural,
             lineSpacing: CGFloat = 2,
             paragraphSpacing: CGFloat = 2,
-            rendersMath: Bool = false
+            rendersMath: Bool = false,
+            appearance: MarkdownAppearance = .light
         ) {
             self.baseFont = baseFont
             self.textColor = textColor
@@ -136,6 +140,7 @@ enum MarkdownFormatter {
             self.lineSpacing = lineSpacing
             self.paragraphSpacing = paragraphSpacing
             self.rendersMath = rendersMath
+            self.appearance = appearance
         }
     }
 
@@ -167,8 +172,8 @@ enum MarkdownFormatter {
         let fullRange = NSRange(location: 0, length: output.length)
         output.setAttributes(baseAttributes(style), range: fullRange)
 
-        styleBlocks(in: output, style: style)
-        styleInline(in: output, range: fullRange, style: style)
+        let verbatimRanges = styleBlocks(in: output, style: style)
+        styleInline(in: output, avoiding: verbatimRanges, style: style)
 
         return output
     }
@@ -177,11 +182,17 @@ enum MarkdownFormatter {
 
     /// Produces the formatted output shown to the user: markers removed,
     /// lists turned into bullets, and math typeset when `rendersMath` is set.
-    static func rendered(_ text: String, style: Style) -> NSAttributedString {
+    static func rendered(
+        _ text: String,
+        style: Style,
+        highlightingCode: Bool = true
+    ) -> NSAttributedString {
         let output = NSMutableAttributedString()
         let rawLines = text.components(separatedBy: "\n")
 
         var inFence = false
+        var fenceLanguage: String?
+        var codeLines: [String] = []
         var hasContent = false
         var newlineAttributes = baseAttributes(style)
 
@@ -189,7 +200,27 @@ enum MarkdownFormatter {
             let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
 
             if trimmed.hasPrefix("```") {
+                if inFence {
+                    appendCodeBlock(
+                        codeLines,
+                        language: fenceLanguage,
+                        to: output,
+                        style: style,
+                        highlightingCode: highlightingCode,
+                        hasContent: &hasContent,
+                        newlineAttributes: &newlineAttributes
+                    )
+                    codeLines = []
+                    fenceLanguage = nil
+                } else {
+                    fenceLanguage = infoLanguage(from: trimmed)
+                }
                 inFence.toggle()
+                continue
+            }
+
+            if inFence {
+                codeLines.append(rawLine)
                 continue
             }
 
@@ -204,11 +235,7 @@ enum MarkdownFormatter {
 
             let lineStart = output.length
 
-            if inFence {
-                appendCodeLine(rawLine, to: output, style: style)
-            } else {
-                appendRenderedLine(rawLine, to: output, style: style)
-            }
+            appendRenderedLine(rawLine, to: output, style: style)
 
             if output.length > lineStart {
                 newlineAttributes = output.attributes(
@@ -222,6 +249,19 @@ enum MarkdownFormatter {
             hasContent = true
         }
 
+        // An unterminated fence still shows its code, highlighted.
+        if inFence {
+            appendCodeBlock(
+                codeLines,
+                language: fenceLanguage,
+                to: output,
+                style: style,
+                highlightingCode: highlightingCode,
+                hasContent: &hasContent,
+                newlineAttributes: &newlineAttributes
+            )
+        }
+
         return output
     }
 
@@ -229,7 +269,7 @@ enum MarkdownFormatter {
     /// for judging typed answers.
     static func plainText(from text: String) -> String {
         let style = Style(baseFont: systemFont, rendersMath: false)
-        return rendered(text, style: style).string
+        return rendered(text, style: style, highlightingCode: false).string
     }
 
     // MARK: - Base attributes
@@ -302,10 +342,13 @@ enum MarkdownFormatter {
     private static func styleBlocks(
         in output: NSMutableAttributedString,
         style: Style
-    ) {
+    ) -> [NSRange] {
         let ns = output.string as NSString
         var index = 0
         var inFence = false
+        var fenceLanguage: String?
+        var codeStart: Int?
+        var verbatimRanges: [NSRange] = []
 
         while index < ns.length {
             var start = 0
@@ -326,10 +369,30 @@ enum MarkdownFormatter {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
             if trimmed.hasPrefix("```") {
+                if inFence, let codeStart {
+                    applyCodeHighlight(
+                        output,
+                        range: NSRange(
+                            location: codeStart,
+                            length: contentRange.location - codeStart
+                        ),
+                        language: fenceLanguage,
+                        style: style
+                    )
+                }
+                if inFence {
+                    codeStart = nil
+                    fenceLanguage = nil
+                } else {
+                    fenceLanguage = infoLanguage(from: trimmed)
+                }
                 output.addAttribute(
                     .foregroundColor,
                     value: style.secondaryColor,
                     range: contentRange
+                )
+                verbatimRanges.append(
+                    NSRange(location: start, length: end - start)
                 )
                 inFence.toggle()
                 index = end
@@ -338,6 +401,12 @@ enum MarkdownFormatter {
 
             if inFence {
                 applyCodeLineStyle(output, range: contentRange)
+                if codeStart == nil {
+                    codeStart = start
+                }
+                verbatimRanges.append(
+                    NSRange(location: start, length: end - start)
+                )
                 index = end
                 continue
             }
@@ -397,6 +466,21 @@ enum MarkdownFormatter {
 
             index = end
         }
+
+        // An unterminated fence still gets its code highlighted.
+        if inFence, let codeStart {
+            applyCodeHighlight(
+                output,
+                range: NSRange(
+                    location: codeStart,
+                    length: ns.length - codeStart
+                ),
+                language: fenceLanguage,
+                style: style
+            )
+        }
+
+        return verbatimRanges
     }
 
     private static func applyCodeLineStyle(
@@ -417,6 +501,40 @@ enum MarkdownFormatter {
     }
 
     // MARK: - Source inline styling
+
+    /// Runs inline styling only outside fenced code, so the syntax colors and
+    /// the characters inside code blocks stay untouched.
+    private static func styleInline(
+        in output: NSMutableAttributedString,
+        avoiding ranges: [NSRange],
+        style: Style
+    ) {
+        var cursor = 0
+        for range in ranges.sorted(by: { $0.location < $1.location }) {
+            if range.location > cursor {
+                styleInline(
+                    in: output,
+                    range: NSRange(
+                        location: cursor,
+                        length: range.location - cursor
+                    ),
+                    style: style
+                )
+            }
+            cursor = max(cursor, NSMaxRange(range))
+        }
+
+        if cursor < output.length {
+            styleInline(
+                in: output,
+                range: NSRange(
+                    location: cursor,
+                    length: output.length - cursor
+                ),
+                style: style
+            )
+        }
+    }
 
     private static func styleInline(
         in output: NSMutableAttributedString,
@@ -625,33 +743,113 @@ enum MarkdownFormatter {
             as? FormatFont ?? fallback
     }
 
-    // MARK: - Rendered lines
+    // MARK: - Code blocks
 
-    private static func appendCodeLine(
-        _ line: String,
+    private static func appendCodeBlock(
+        _ lines: [String],
+        language: String?,
         to output: NSMutableAttributedString,
-        style: Style
+        style: Style,
+        highlightingCode: Bool,
+        hasContent: inout Bool,
+        newlineAttributes: inout [NSAttributedString.Key: Any]
     ) {
-        let font = monospacedFont(style.baseFont)
+        let code = lines.joined(separator: "\n")
+        guard !code.isEmpty else { return }
+
+        if hasContent {
+            output.append(
+                NSAttributedString(
+                    string: "\n",
+                    attributes: newlineAttributes
+                )
+            )
+        }
+
+        let lineStart = output.length
         output.append(
             NSAttributedString(
-                string: line,
-                attributes: [
-                    .font: font,
-                    .foregroundColor: style.textColor,
-                    .backgroundColor: MarkdownColors.codeBackground,
-                    .paragraphStyle: paragraphStyle(style, headIndent: 12),
-                ]
+                string: code,
+                attributes: codeAttributes(style)
             )
         )
+
+        if highlightingCode {
+            applyCodeHighlight(
+                output,
+                range: NSRange(
+                    location: lineStart,
+                    length: (code as NSString).length
+                ),
+                language: language,
+                style: style
+            )
+        }
+
+        newlineAttributes = output.attributes(
+            at: lineStart,
+            effectiveRange: nil
+        )
+        hasContent = true
     }
+
+    private static func codeAttributes(
+        _ style: Style
+    ) -> [NSAttributedString.Key: Any] {
+        [
+            .font: monospacedFont(style.baseFont),
+            .foregroundColor: style.textColor,
+            .backgroundColor: MarkdownColors.codeBackground,
+            .paragraphStyle: paragraphStyle(style, headIndent: 12),
+        ]
+    }
+
+    /// The language tag after the backticks of a fence, if any.
+    private static func infoLanguage(from fenceLine: String) -> String? {
+        let info = String(fenceLine.dropFirst(3))
+            .trimmingCharacters(in: .whitespaces)
+        guard let token = info.split(whereSeparator: { $0.isWhitespace }).first
+        else { return nil }
+        let name = String(token)
+        return name.isEmpty ? nil : name
+    }
+
+    /// Applies the syntax colors for `range` on top of the code attributes.
+    /// The text itself is never changed.
+    private static func applyCodeHighlight(
+        _ output: NSMutableAttributedString,
+        range: NSRange,
+        language: String?,
+        style: Style
+    ) {
+        guard range.length > 0 else { return }
+        let code = (output.string as NSString).substring(with: range)
+        let spans = CodeSyntaxHighlighter.spans(
+            for: code,
+            language: language,
+            appearance: style.appearance
+        )
+
+        for span in spans {
+            let start = range.location + span.range.location
+            guard start >= range.location else { continue }
+            let target = NSRange(location: start, length: span.range.length)
+            guard NSMaxRange(target) <= NSMaxRange(range) else { continue }
+            output.addAttribute(
+                .foregroundColor,
+                value: span.color,
+                range: target
+            )
+        }
+    }
+
+    // MARK: - Rendered lines
 
     private static func appendRenderedLine(
         _ line: String,
         to output: NSMutableAttributedString,
         style: Style
-    ) {
-        let ns = line as NSString
+    ) {        let ns = line as NSString
 
         // Heading
         if let heading = headingPrefix(in: line) {

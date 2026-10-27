@@ -116,6 +116,8 @@ struct FlashcardSideContentView: View {
     let side: FlashcardSide?
     var textStyle: TextStyle = .title2
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         if let side {
             content(for: side)
@@ -138,7 +140,8 @@ struct FlashcardSideContentView: View {
                         style: MarkdownFormatter.Style(
                             baseFont: platformFont,
                             alignment: .center,
-                            rendersMath: true
+                            rendersMath: true,
+                            appearance: colorScheme == .dark ? .dark : .light
                         )
                     ),
                     alignment: .center
