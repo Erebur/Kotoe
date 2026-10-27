@@ -70,24 +70,27 @@ struct RichTextField: View {
     @State private var showsStyleGuide = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack(alignment: .topTrailing) {
-                content
-                    .frame(height: fillsHeight ? nil : contentHeight)
+        ZStack(alignment: .topTrailing) {
+            content
+                .frame(height: fillsHeight ? nil : contentHeight)
 
-                if attributedText.string.isEmpty && !isFocused {
-                    placeholderText
-                }
-
-                if showsStyleControls {
-                    styleGuideButton
-                        .padding(.top, 7)
-                        .padding(.trailing, 8)
-                }
+            if attributedText.string.isEmpty && !isFocused {
+                placeholderText
             }
 
-            if showsStyleControls, displayMode != nil {
-                modeFooter
+            if showsStyleControls {
+                styleGuideButton
+                    .padding(.top, 7)
+                    .padding(.trailing, 8)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            // The mode switch floats over the text so the field does not lose
+            // a footer row to it.
+            if showsStyleControls, let displayMode {
+                RichTextModeSwitch(mode: displayMode)
+                    .padding(.trailing, 8)
+                    .padding(.bottom, 7)
             }
         }
         .background(
@@ -155,7 +158,8 @@ struct RichTextField: View {
             height: height,
             submitsOnReturn: submitsOnReturn,
             onSubmit: onSubmit,
-            isEditable: editable ?? isEditable
+            isEditable: editable ?? isEditable,
+            bottomInset: floatingSwitch ? 30 : 0
         )
         // Reserve room for the info button without shifting the text's left
         // edge; the text views inset both sides equally.
@@ -198,7 +202,7 @@ struct RichTextField: View {
             .padding(.top, 10)
             .padding(.leading, 13)
             .padding(.trailing, showsStyleControls ? 34 : 13)
-            .padding(.bottom, 10)
+            .padding(.bottom, floatingSwitch ? 38 : 10)
         }
     }
 
@@ -215,16 +219,9 @@ struct RichTextField: View {
 
     // MARK: Controls
 
-    private var modeFooter: some View {
-        HStack {
-            Spacer()
-
-            if let displayMode {
-                RichTextModeSwitch(mode: displayMode)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.bottom, 7)
+    /// Whether the mode switch floats over the text.
+    private var floatingSwitch: Bool {
+        showsStyleControls && displayMode != nil
     }
 
     private var styleGuideButton: some View {
@@ -314,9 +311,14 @@ private struct RichTextModeSwitch: View {
         }
         .padding(2)
         .background(
-            Color.primary.opacity(0.05),
+            .regularMaterial,
             in: RoundedRectangle(cornerRadius: 8, style: .continuous)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(KotoeTheme.hairline, lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("shared.richText.displayMode")
     }
@@ -433,6 +435,7 @@ struct RichTextEditor: NSViewRepresentable {
     let submitsOnReturn: Bool
     let onSubmit: () -> Void
     let isEditable: Bool
+    let bottomInset: CGFloat
 
     static var systemFont: FormatFont {
         NSFont.systemFont(ofSize: NSFont.systemFontSize)
@@ -448,6 +451,13 @@ struct RichTextEditor: NSViewRepresentable {
         scrollView.borderType = .noBorder
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
+        scrollView.automaticallyAdjustsContentInsets = false
+        scrollView.contentInsets = NSEdgeInsets(
+            top: 0,
+            left: 0,
+            bottom: bottomInset,
+            right: 0
+        )
 
         let textView = NSTextView()
         textView.isRichText = true
@@ -506,6 +516,12 @@ struct RichTextEditor: NSViewRepresentable {
 
         textView.isEditable = isEditable
         textView.isSelectable = isEditable
+        scrollView.contentInsets = NSEdgeInsets(
+            top: 0,
+            left: 0,
+            bottom: bottomInset,
+            right: 0
+        )
 
         if !context.coordinator.isProgrammaticChange {
             let current = textView.textStorage?.string ?? ""
@@ -647,6 +663,7 @@ struct RichTextEditor: UIViewRepresentable {
     let submitsOnReturn: Bool
     let onSubmit: () -> Void
     let isEditable: Bool
+    let bottomInset: CGFloat
 
     static var systemFont: FormatFont {
         UIFont.preferredFont(forTextStyle: .body)
@@ -662,6 +679,12 @@ struct RichTextEditor: UIViewRepresentable {
         textView.isScrollEnabled = true
         textView.isEditable = isEditable
         textView.isSelectable = isEditable
+        textView.contentInset = UIEdgeInsets(
+            top: 0,
+            left: 0,
+            bottom: bottomInset,
+            right: 0
+        )
         textView.showsVerticalScrollIndicator = true
         textView.alwaysBounceVertical = false
         textView.textContainerInset = UIEdgeInsets(
@@ -705,6 +728,12 @@ struct RichTextEditor: UIViewRepresentable {
 
         textView.isEditable = isEditable
         textView.isSelectable = isEditable
+        textView.contentInset = UIEdgeInsets(
+            top: 0,
+            left: 0,
+            bottom: bottomInset,
+            right: 0
+        )
 
         if !context.coordinator.isProgrammaticChange {
             if textView.attributedText.string != attributedText.string {

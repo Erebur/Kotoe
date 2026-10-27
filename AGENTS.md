@@ -434,10 +434,12 @@ card row opens the editor for an existing one.
   formatting buttons.
 - Every content field shows a grey `info.circle` at its top trailing corner
   with no background. It opens `RichTextStyleGuideView`, which demonstrates
-  every supported style in a read-only split field. A three-way switch at the
-  bottom trailing corner toggles editor, split, and rendered preview; the mode
-  is stored on the owning model (see **Data model**). Transient inputs such as
-  the typed study answer keep `showsStyleControls` off.
+  every supported style in a read-only split field. A three-way switch
+  **floats** over the text at the bottom trailing corner (material chip, no
+  footer row) and toggles editor, split, and rendered preview; the mode is
+  stored on the owning model (see **Data model**). The text gets a matching
+  bottom inset so the last line can still scroll clear of the chip. Transient
+  inputs such as the typed study answer keep `showsStyleControls` off.
 - The file picker accepts every file (`UTType.item`); `ImportedFile` decides
   what the file becomes — a PDF stays a PDF, an image is stored as an image,
   a text file becomes text. Picking a file also switches the side's
@@ -685,13 +687,17 @@ text — do not paste it into Swift code or the string catalog.
   SwiftUI `Text` drops attachments. The math image is rasterized, so it does
   not follow Dynamic Type after rendering.
 - The rich text field's split view is side by side on macOS and stacked on
-  iOS. In preview the editor stays mounted but invisible so its measured
-  height keeps sizing the field; switching to preview also resigns first
-  responder so the keyboard does not cover the mode switch. The field keeps
-  one height in every mode so the layout does not jump, which means the split
-  panes scroll instead of growing the field. The style guide sheet gives its
-  sample field `fillsHeight` so it uses the whole sheet, and the info and
-  mode-switch buttons show the pointing-hand cursor on macOS.
+  iOS. In preview and split the editor stays mounted but invisible so its
+  measured height keeps sizing the field; the hidden copy is read-only and
+  measures at full width, so all three modes report the same height and
+  switching does not move the layout (the split panes scroll instead of
+  growing the field). Switching to preview also resigns first responder so the
+  keyboard does not cover the mode switch. The mode switch is an overlay chip
+  in the field's bottom trailing corner rather than a footer row; the native
+  text views carry a matching bottom content inset so the last line can
+  scroll out from under it. The style guide sheet gives its sample field
+  `fillsHeight` so it uses the whole sheet, and the info and mode-switch
+  buttons show the pointing-hand cursor on macOS.
 
 ## Where to change what
 
