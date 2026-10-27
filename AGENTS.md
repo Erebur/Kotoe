@@ -291,7 +291,8 @@ Kotoe/
     Media/
       MediaStore.swift           iCloud Drive file storage for card media
     Sync/
-      CloudKitSyncMonitor.swift  CloudKit event observer + sync status
+      CloudKitSyncMonitor.swift  CloudKit event observer, sync status,
+                                 failure log
   Import/
     TextCardImporter.swift       pasted text → cards (Quizlet TSV and friends)
     ImportedFile.swift           reads a picked file, detects its content
@@ -304,6 +305,7 @@ Kotoe/
   Views/
     FlashcardSetEditView.swift   set editor, card editor, side editor
     CardImportView.swift         bulk import sheet: paste text, preview, import
+    SyncErrorLogView.swift       popup: every CloudKit failure this session
     FlashcardSideContentView.swift  rendering, media loading,
                                     PencilKit canvases, DrawingEditorView
     Theme.swift                  brand colors, card surfaces, shared UI pieces
@@ -460,6 +462,13 @@ in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
   notifications even though it never exposes its container. The line is
   pinned to the bottom of the library screen with a `safeAreaInset`, not
   part of the scroll view, so it stays readable at any scroll position.
+- The footer line is a button that opens `SyncErrorLogView`: every distinct
+  failure from the current session, newest first, with operation, time,
+  message, error domain/code, and CloudKit's underlying errors, partial errors
+  per record, and retry hint when present. Repeated failures of the same
+  operation and error are grouped with a count, the list is capped at 100
+  entries, and **Clear** empties it. The log is in memory only, so it starts
+  empty after a relaunch; text is selectable for copying into a bug report.
 - Imports run through `NSPersistentStoreRemoteChange` and normally refresh
   `@Query` results without extra work. When data looks missing, relaunch before
   assuming it never synced — TN3164 lists this first.
@@ -641,8 +650,8 @@ text — do not paste it into Swift code or the string catalog.
 - Change UI copy or add a language: `Localizable.xcstrings`, plus
   `Control/LocalizedCounts.swift` for plural counts; see **Localization**.
 - Change sync status, logging, or CloudKit diagnostics:
-  `Control/Sync/CloudKitSyncMonitor.swift` and the footer in
-  `ContentView.swift`; see **iCloud sync**.
+  `Control/Sync/CloudKitSyncMonitor.swift`, the footer in
+  `ContentView.swift`, and `Views/SyncErrorLogView.swift`; see **iCloud sync**.
 - Change the license text: the `LICENSE` file at the repository root; see
   **License**.
 - Change the public project page: `README.md` and the screenshots in
@@ -660,9 +669,10 @@ text — do not paste it into Swift code or the string catalog.
 - Non-English UI strings are machine translated and have not been reviewed by
   native speakers. The app does not point this out to the user.
 - Rich text is stored as RTF but edited and rendered as plain text.
-- CloudKit sync failures are only logged and summarised in the library footer;
-  there is no retry button, no `CKContainer.accountStatus` check, and the model
-  container still calls `fatalError` when it cannot be created.
+- CloudKit sync failures are logged and listed behind the library footer; the
+  log only covers the current session and there is no retry button, no
+  `CKContainer.accountStatus` check, and the model container still calls
+  `fatalError` when it cannot be created.
 - Orphaned sets/cards (a `nil` parent left behind by a cascade delete on another
   device) have no UI and no repair pass, so they are invisible but still stored.
 - Deleting a card locally calls `removeMediaFiles()` before

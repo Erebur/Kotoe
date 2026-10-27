@@ -106,4 +106,20 @@ extension View {
         self
         #endif
     }
+
+    /// Diagnostic log sheets hold a scrollable list, so they need room on
+    /// every platform and can expand to full height on iOS.
+    @ViewBuilder
+    func logSheetSize(
+        width: CGFloat = 520,
+        height: CGFloat = 560
+    ) -> some View {
+        #if os(macOS)
+        self.frame(width: width, height: height)
+        #else
+        self
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        #endif
+    }
 }

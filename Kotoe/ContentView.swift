@@ -26,6 +26,7 @@ struct ContentView: View {
     @State private var newSubjectName = ""
     @State private var subjectPendingDeletion: Subject?
     @State private var customizingSubject: Subject?
+    @State private var showingSyncLog = false
 
     var body: some View {
         NavigationStack {
@@ -89,6 +90,9 @@ struct ContentView: View {
             }
             .sheet(item: $customizingSubject) { subject in
                 appearanceEditor(for: subject)
+            }
+            .sheet(isPresented: $showingSyncLog) {
+                SyncErrorLogView(monitor: syncMonitor)
             }
             .confirmationDialog(
                 "contentView.deleteSubjectDialog.title",
@@ -181,7 +185,8 @@ struct ContentView: View {
     }
 
     /// CloudKit retries silently, so without this line a failed import is
-    /// indistinguishable from an empty library.
+    /// indistinguishable from an empty library. Tapping the line opens the
+    /// error log with every failure from this session.
     @ViewBuilder
     private var syncStatus: some View {
         switch syncMonitor.state {
@@ -189,30 +194,46 @@ struct ContentView: View {
             EmptyView()
 
         case .syncing:
-            syncLabel(
+            syncButton(
                 String(localized: "contentView.footer.sync.syncing"),
                 symbol: "arrow.triangle.2.circlepath",
                 tint: .secondary
             )
 
         case .synced(let date):
-            syncLabel(
+            syncButton(
                 syncedText(for: date),
                 symbol: "checkmark.icloud",
                 tint: .secondary
             )
 
         case .failed:
-            syncLabel(
+            syncButton(
                 String(localized: "contentView.footer.sync.failed"),
                 symbol: "exclamationmark.icloud",
-                tint: KotoeTheme.accent
-            )
-            .help(
-                syncMonitor.lastErrorDescription
-                    ?? String(localized: "contentView.footer.sync.failed")
+                tint: KotoeTheme.accent,
+                help: syncMonitor.lastErrorDescription
             )
         }
+    }
+
+    private func syncButton(
+        _ text: String,
+        symbol: String,
+        tint: Color,
+        help: String? = nil
+    ) -> some View {
+        Button {
+            showingSyncLog = true
+        } label: {
+            syncLabel(text, symbol: symbol, tint: tint)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("contentView.syncLog.accessibilityHint")
+        .help(
+            help
+                ?? String(localized: "contentView.syncLog.accessibilityHint")
+        )
     }
 
     private func syncedText(for date: Date) -> String {
