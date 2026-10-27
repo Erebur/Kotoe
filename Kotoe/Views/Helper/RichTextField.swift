@@ -70,12 +70,32 @@ struct RichTextField: View {
     @State private var showsStyleGuide = false
     @State private var splitSync = SplitScrollSync()
 
+    @State private var fieldWidth: CGFloat = 0
+
+    /// Below this width an iOS field is too narrow for the split view.
+    private let narrowWidthThreshold: CGFloat = 450
+
+    /// On a narrow iOS field, whether the user has tapped to enter editor
+    /// mode. The field opens in preview whatever was saved; tapping switches
+    /// to editor mode.
+    @State private var tappedToEdit = false
+
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             content
                 .frame(height: fillsHeight ? nil : contentHeight)
+                .simultaneousGesture(
+                    TapGesture().onEnded {
+                        #if os(iOS)
+                        if isNarrow {
+                            tappedToEdit = true
+                            isFocused = true
+                        }
+                        #endif
+                    }
+                )
 
             if attributedText.string.isEmpty && !isFocused {
                 placeholderText
@@ -91,9 +111,12 @@ struct RichTextField: View {
             // The mode switch floats over the text so the field does not lose
             // a footer row to it.
             if showsStyleControls, let displayMode {
-                RichTextModeSwitch(mode: displayMode)
-                    .padding(.trailing, 8)
-                    .padding(.bottom, 7)
+                RichTextModeSwitch(
+                    mode: modeSwitchBinding(displayMode),
+                    showsSplit: !isNarrow
+                )
+                .padding(.trailing, 8)
+                .padding(.bottom, 7)
             }
         }
         .background(
@@ -108,18 +131,67 @@ struct RichTextField: View {
                 )
         )
         .animation(.easeOut(duration: 0.15), value: isFocused)
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
+            fieldWidth = width
+        }
         .sheet(isPresented: $showsStyleGuide) {
             RichTextStyleGuideView()
         }
-        .onChange(of: mode) { _, newMode in
+        .onChange(of: renderedMode) { _, newMode in
             if newMode == .preview {
                 dismissKeyboard()
             }
+        }
+        .onChange(of: isFocused) { _, isFocused in
+            #if os(iOS)
+            // When focus leaves a narrow field, drop back to preview mode so
+            // the field returns to its read-only default once typing ends.
+            if isNarrow, !isFocused {
+                tappedToEdit = false
+            }
+            #endif
         }
     }
 
     private var mode: RichTextDisplayMode {
         displayMode?.wrappedValue ?? .editor
+    }
+
+    /// Whether the field is too narrow on iOS for the split view.
+    private var isNarrow: Bool {
+        #if os(iOS)
+        fieldWidth < narrowWidthThreshold
+        #else
+        false
+        #endif
+    }
+
+    /// The mode actually rendered. On narrow iOS fields the split view is
+    /// unavailable, preview is the default whatever was saved, and a tap
+    /// switches to editor mode.
+    private var renderedMode: RichTextDisplayMode {
+        #if os(iOS)
+        if isNarrow {
+            return tappedToEdit ? .editor : .preview
+        }
+        #endif
+        return mode
+    }
+
+    /// On narrow iOS fields the switch drives the local tap-to-edit state so
+    /// split stays unavailable; on wider fields it writes the saved binding.
+    private func modeSwitchBinding(_ displayMode: Binding<RichTextDisplayMode>)
+        -> Binding<RichTextDisplayMode>
+    {
+        #if os(iOS)
+        if isNarrow {
+            return Binding(
+                get: { renderedMode },
+                set: { tappedToEdit = ($0 == .editor) }
+            )
+        }
+        #endif
+        return displayMode
     }
 
     private var appearance: MarkdownAppearance {
@@ -130,7 +202,7 @@ struct RichTextField: View {
 
     @ViewBuilder
     private var content: some View {
-        switch mode {
+        switch renderedMode {
         case .editor:
             editor(height: $editorHeight)
 
@@ -288,9 +360,17 @@ private struct RichTextModeSwitch: View {
 
     @Binding var mode: RichTextDisplayMode
 
+    /// Whether the split option is offered. Hidden on narrow iOS fields.
+    var showsSplit: Bool = true
+
+    /// Modes offered by the switch.
+    private var modes: [RichTextDisplayMode] {
+        showsSplit ? RichTextDisplayMode.allCases : [.editor, .preview]
+    }
+
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(RichTextDisplayMode.allCases, id: \.self) { option in
+            ForEach(modes, id: \.self) { option in
                 Button {
                     mode = option
                 } label: {
@@ -809,6 +889,15 @@ struct RichTextEditor: UIViewRepresentable {
                 DispatchQueue.main.async {
                     context.coordinator.restyle()
                 }
+            }
+        }
+
+        // When the field was just switched into editor mode on a narrow iOS
+        // field, open the keyboard so the user can type right away. The
+        // invisible measuring editor is not editable, so it never steals focus.
+        if isEditable, isFocused, textView.window != nil, !textView.isFirstResponder {
+            DispatchQueue.main.async {
+                textView.becomeFirstResponder()
             }
         }
 

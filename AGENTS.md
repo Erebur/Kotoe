@@ -760,6 +760,14 @@ text — do not paste it into Swift code or the string catalog.
   inset so the last line can scroll out from under it. The style guide sheet
   gives its sample field `fillsHeight` so it uses the whole sheet, and the info
   and mode-switch buttons show the pointing-hand cursor on macOS.
+- On iOS, when a rich text field is narrower than `narrowWidthThreshold` in
+  `RichTextField.swift` (about an iPhone in portrait), the split view is
+  removed, the field opens in preview mode whatever was saved, and tapping
+  anywhere in the field switches to editor mode, focuses the text view, and
+  opens the keyboard. When focus leaves the field it switches back to preview
+  mode. The mode switch still offers editor and preview (split excluded) so the
+  user can switch back. This only affects iOS; macOS keeps the saved mode and
+  the split view.
 
 ## Where to change what
 
