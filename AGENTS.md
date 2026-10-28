@@ -311,7 +311,9 @@ docs/images/                     Screenshots referenced by README.md
 Tools/
   demo                           headless screen renderer + progress panel
   DemoKit/                       SwiftPM package behind Tools/demo
-    Package.swift                KotoeDemo and KotoeDemoHUD executables
+    Package.swift                KotoeDemo and KotoeDemoHUD executables; declares
+                                 SwiftMath and HighlighterSwift for the app sources
+    Package.resolved             pins the same package versions as the app
     Sources/KotoeDemo/           renderer; compiles Kotoe/ via a symlink
     Sources/KotoeDemoHUD/        floating progress panel
 Kotoe/
@@ -324,6 +326,7 @@ Kotoe/
     Sync/
       CloudKitSyncMonitor.swift  CloudKit event observer, sync status,
                                  failure log
+      CloudKitRecordResolver.swift  record name → local item (read-only)
   Import/
     TextCardImporter.swift       pasted text → cards (Quizlet TSV and friends)
     ImportedFile.swift           reads a picked file, detects its content
@@ -587,8 +590,14 @@ in `Kōtoe.entitlements`). Nothing in the app talks to CloudKit directly.
   `NSDetailedErrorsKey`, the debug description, failure reason and recovery
   suggestion, and the retry hint) and **Failed records** (CloudKit's
   `CKPartialErrorsByItemIDKey`, one row per record with that record's own
-  error). The record row shows the raw `CD_<Entity>_<UUID>` record name so it
-  can be matched in the CloudKit Console. `CKErrorDomain` 2 is
+  error). `CloudKitRecordResolver` maps each `CD_<Entity>_<UUID>` name back to
+  its local object through the store's `ANSCKRECORDMETADATA` table, read
+  directly with read-only SQLite. The row leads with the action — upload,
+  download, delete, or sync — and a human item such as `Card "…"` or
+  `Front of "…"`, and keeps the raw record name underneath for the CloudKit
+  Console. A record with no local row (for example a download from another
+  device that has not been imported yet) falls back to the entity name from
+  the record prefix and the raw name. `CKErrorDomain` 2 is
   `CKError.partialFailure`: the outer error only says a batch was partly
   rejected, and the real reason is in the Failed records rows. Identical
   details and records are grouped with a count; repeated failures of the same
@@ -857,6 +866,9 @@ text — do not paste it into Swift code or the string catalog.
 - Change sync status, logging, or CloudKit diagnostics:
   `Control/Sync/CloudKitSyncMonitor.swift`, the footer in
   `ContentView.swift`, and `Views/SyncErrorLogView.swift`; see **iCloud sync**.
+- Change how a failed CloudKit record is mapped to a local card or subject:
+  `Control/Sync/CloudKitRecordResolver.swift`. The metadata table is internal
+  to Core Data, so keep the lookup read-only and tolerant of missing rows.
 - Change the license text: the `LICENSE` file at the repository root; see
   **License**.
 - Change the public project page: `README.md` and the screenshots in
@@ -889,6 +901,12 @@ text — do not paste it into Swift code or the string catalog.
   log only covers the current session and there is no retry button, no
   `CKContainer.accountStatus` check, and the model container still calls
   `fatalError` when it cannot be created.
+- SwiftData's CloudKit mirror batches records and exposes no API to force one
+  record per operation or replay a single failed record. The sync log names
+  the failing records but cannot make the mirror retry them one at a time.
+  `CloudKitRecordResolver` reads Core Data's internal
+  `ANSCKRECORDMETADATA` table read-only, so it only resolves records that
+  still exist locally and may need updating if that schema changes.
 - Orphaned sets/cards (a `nil` parent left behind by a cascade delete on another
   device) have no UI and no repair pass, so they are invisible but still stored.
 - Deleting a card locally calls `removeMediaFiles()` before

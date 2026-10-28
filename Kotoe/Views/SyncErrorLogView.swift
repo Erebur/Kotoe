@@ -35,8 +35,6 @@ struct SyncErrorLogView: View {
 
     // MARK: - Content
 
-    // MARK: - Content
-
     @ViewBuilder
     private var content: some View {
         if monitor.failures.isEmpty {
@@ -169,6 +167,11 @@ struct SyncErrorLogView: View {
 
     /// One row per record CloudKit rejected in a partial failure, with that
     /// record's own error underneath it.
+    ///
+    /// The mirror reports record names such as `CD_Flashcard_<UUID>`, which
+    /// say nothing about the card a user just edited. The monitor resolves
+    /// each name to its local item, so the row leads with the action and the
+    /// item and keeps the raw name underneath for the CloudKit Console.
     private func recordErrorsSection(
         _ records: [CloudKitSyncMonitor.SyncFailure.RecordError]
     ) -> some View {
@@ -179,32 +182,78 @@ struct SyncErrorLogView: View {
             )
 
             ForEach(records) { record in
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(verbatim: record.record)
-                            .font(
-                                .system(.caption2, design: .monospaced)
-                                    .weight(.semibold)
-                            )
-                            .textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        if record.count > 1 {
-                            Text(verbatim: "×\(record.count)")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Text(verbatim: record.technicalLine)
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                recordErrorRow(record)
             }
         }
         .padding(.top, 2)
+    }
+
+    private func recordErrorRow(
+        _ record: CloudKitSyncMonitor.SyncFailure.RecordError
+    ) -> some View {
+        let title = record.item
+            ?? entityTitle(record.entity)
+            ?? record.record
+
+        return VStack(alignment: .leading, spacing: 3) {
+            if let action = record.action {
+                Label {
+                    Text(action.title)
+                } icon: {
+                    Image(systemName: action.symbol)
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(KotoeTheme.accent)
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(verbatim: title)
+                    .font(.caption.weight(.semibold))
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if record.count > 1 {
+                    Text(verbatim: "×\(record.count)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if title != record.record {
+                Text(verbatim: record.record)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text(verbatim: record.technicalLine)
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Friendly name for a record whose local object could not be found, for
+    /// example a failed download from another device.
+    private func entityTitle(_ entity: String?) -> String? {
+        guard let entity else { return nil }
+
+        switch entity {
+        case "Subject":
+            return String(localized: "contentView.syncLog.entity.subject")
+        case "FlashcardSet":
+            return String(localized: "contentView.syncLog.entity.set")
+        case "Flashcard":
+            return String(localized: "contentView.syncLog.entity.card")
+        case "FlashcardSide":
+            return String(localized: "contentView.syncLog.entity.side")
+        case "FlashcardReview":
+            return String(localized: "contentView.syncLog.entity.review")
+        default:
+            return entity
+        }
     }
 
     private func detailLabel(
@@ -272,6 +321,29 @@ private extension CloudKitSyncMonitor.SyncFailure.Operation {
         case .import: return "contentView.syncLog.operation.import"
         case .export: return "contentView.syncLog.operation.export"
         case .other: return "contentView.syncLog.operation.other"
+        }
+    }
+}
+
+// MARK: - Record Action Titles
+
+private extension SyncRecordAction {
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .upload: return "contentView.syncLog.action.upload"
+        case .download: return "contentView.syncLog.action.download"
+        case .delete: return "contentView.syncLog.action.delete"
+        case .setup, .other: return "contentView.syncLog.action.sync"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .upload: return "arrow.up.circle"
+        case .download: return "arrow.down.circle"
+        case .delete: return "trash"
+        case .setup, .other: return "arrow.triangle.2.circlepath"
         }
     }
 }

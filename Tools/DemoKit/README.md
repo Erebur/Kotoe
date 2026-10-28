@@ -50,7 +50,7 @@ what scripts and CI-like runs should use.
 | `study-finished` | Finished session |
 | `import` | Bulk import sheet |
 | `appearance` | Icon and color editor |
-| `sync-log` | CloudKit error log |
+| `sync-log` | CloudKit error log with resolved record items |
 
 Every scene uses a fresh in-memory `ModelContainer` with
 `cloudKitDatabase: .none`, so a demo can never read or write the real store,
@@ -67,6 +67,7 @@ Options mirror the parts of the app worth varying: `--size WxH`, `--scale N`
 Tools/demo                      arg parsing, build cache, worker/panel split
 Tools/DemoKit/
   Package.swift                 SwiftPM package, two executables
+  Package.resolved              pinned SwiftMath / HighlighterSwift versions
   Sources/KotoeDemo/
     Kotoe -> ../../../../Kotoe  the app's sources, compiled into the tool
     DemoCLI.swift               entry point, markers, app lifecycle
@@ -83,7 +84,9 @@ Tools/DemoKit/
 
 - SwiftPM compiles `Kotoe/` through a symlink, so any new app file is picked
   up automatically and a demo can never drift from the sources. `FlashApp.swift`
-  is excluded because the demo tool provides its own `@main`.
+  is excluded because the demo tool provides its own `@main`. The package
+  declares the same SwiftMath and HighlighterSwift dependencies as the app,
+  because the compiled sources import them.
 - `ImageRenderer` draws `ScrollView` content blank, so the renderer puts each
   view in a real `NSHostingView` inside a transparent window and captures its
   backing store with `cacheDisplay(in:to:)`. The window sits in the corner of

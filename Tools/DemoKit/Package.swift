@@ -8,9 +8,23 @@ import PackageDescription
 let package = Package(
     name: "KotoeDemoKit",
     platforms: [.macOS("27.0")],
+    dependencies: [
+        .package(
+            url: "https://github.com/mgriebling/SwiftMath.git",
+            exact: "1.7.3"
+        ),
+        .package(
+            url: "https://github.com/smittytone/HighlighterSwift.git",
+            from: "3.1.0"
+        ),
+    ],
     targets: [
         .executableTarget(
             name: "KotoeDemo",
+            dependencies: [
+                .product(name: "SwiftMath", package: "SwiftMath"),
+                .product(name: "Highlighter", package: "HighlighterSwift"),
+            ],
             path: "Sources/KotoeDemo",
             exclude: [
                 "Kotoe/FlashApp.swift",

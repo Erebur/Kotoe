@@ -12,8 +12,11 @@ import SwiftUI
 struct FlashApp: App {
 
     /// Observes CloudKit's import and export events so the library screen can
-    /// show whether the last sync succeeded.
-    @State private var syncMonitor = CloudKitSyncMonitor()
+    /// show whether the last sync succeeded and which local item a failed
+    /// record belongs to.
+    @State private var syncMonitor = CloudKitSyncMonitor(
+        container: Self.modelContainer
+    )
 
     private static let modelContainer: ModelContainer = {
         let schema = Schema([

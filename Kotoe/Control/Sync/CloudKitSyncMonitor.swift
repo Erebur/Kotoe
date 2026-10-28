@@ -9,6 +9,7 @@ import CloudKit
 import CoreData
 import Foundation
 import Observation
+import SwiftData
 
 /// Watches the CloudKit mirror that SwiftData runs underneath the app.
 ///
@@ -89,12 +90,29 @@ final class CloudKitSyncMonitor {
             let message: String
             var count: Int
 
+            /// What the mirror was doing with the record, once known.
+            var action: SyncRecordAction? = nil
+
+            /// Core Data entity name, such as `Flashcard`, resolved from the
+            /// record's local metadata.
+            var entity: String? = nil
+
+            /// Human-readable local item, such as `Card "What is 2+2?"`.
+            var item: String? = nil
+
             var technicalLine: String {
                 formattedErrorLine(
                     domain: domain,
                     code: code,
                     message: message
                 )
+            }
+
+            func matches(_ other: RecordError) -> Bool {
+                record == other.record
+                    && domain == other.domain
+                    && code == other.code
+                    && message == other.message
             }
         }
 
@@ -104,7 +122,7 @@ final class CloudKitSyncMonitor {
         let domain: String?
         let code: Int?
         let details: [Detail]
-        let recordErrors: [RecordError]
+        var recordErrors: [RecordError]
         var lastSeenAt: Date
         var count: Int
 
@@ -126,6 +144,7 @@ final class CloudKitSyncMonitor {
 
     /// Caps the in-memory log so a persistent failure cannot grow forever.
     private static let maximumFailures = 100
+    private static let maximumRecordErrors = 50
 
     private(set) var state: State = .idle
     private(set) var lastImportedAt: Date?
@@ -144,14 +163,22 @@ final class CloudKitSyncMonitor {
 
     @ObservationIgnored private var observer: NSObjectProtocol?
 
+    /// Turns the record names in a partial failure into local cards and
+    /// subjects. Previews and demos pass no container and keep the raw names.
+    @ObservationIgnored private let resolver: CloudKitRecordResolver
+
     deinit {
         if let observer {
             NotificationCenter.default.removeObserver(observer)
         }
     }
 
-    init(failures: [SyncFailure] = []) {
+    init(
+        container: ModelContainer? = nil,
+        failures: [SyncFailure] = []
+    ) {
         self.failures = failures
+        self.resolver = CloudKitRecordResolver(container: container)
 
         observer = NotificationCenter.default.addObserver(
             forName: NSPersistentCloudKitContainer.eventChangedNotification,
@@ -185,7 +212,7 @@ final class CloudKitSyncMonitor {
         }
 
         guard event.succeeded else {
-            let failure = Self.failure(
+            let failure = self.failure(
                 for: event.type,
                 error: event.error,
                 at: endDate
@@ -296,6 +323,15 @@ final class CloudKitSyncMonitor {
             var existing = failures.remove(at: index)
             existing.lastSeenAt = failure.lastSeenAt
             existing.count += 1
+
+            // A repeated export can reject different records each time. Keep
+            // every distinct record so the log names each failing card, not
+            // only the one from the first attempt.
+            existing.recordErrors = Self.mergedRecordErrors(
+                existing.recordErrors,
+                with: failure.recordErrors
+            )
+
             failures.insert(existing, at: 0)
             return
         }
@@ -307,7 +343,40 @@ final class CloudKitSyncMonitor {
         }
     }
 
-    private static func failure(
+    private static func mergedRecordErrors(
+        _ existing: [SyncFailure.RecordError],
+        with incoming: [SyncFailure.RecordError]
+    ) -> [SyncFailure.RecordError] {
+        var result = existing
+
+        for record in incoming {
+            if let index = result.firstIndex(where: {
+                $0.matches(record)
+            }) {
+                result[index].count += record.count
+
+                if result[index].action == nil {
+                    result[index].action = record.action
+                }
+                if result[index].entity == nil {
+                    result[index].entity = record.entity
+                }
+                if result[index].item == nil {
+                    result[index].item = record.item
+                }
+            } else {
+                result.append(record)
+            }
+        }
+
+        if result.count > Self.maximumRecordErrors {
+            result.removeLast(result.count - Self.maximumRecordErrors)
+        }
+
+        return result
+    }
+
+    private func failure(
         for type: NSPersistentCloudKitContainer.EventType,
         error: Error?,
         at date: Date
@@ -315,12 +384,13 @@ final class CloudKitSyncMonitor {
         let nsError = error as NSError?
         let message = nsError?.localizedDescription
             ?? String(localized: "contentView.footer.sync.failed")
+        let operation = Self.operation(for: type)
 
         var details: [SyncFailure.Detail] = []
         var recordErrors: [SyncFailure.RecordError] = []
 
         if let nsError {
-            collect(
+            Self.collect(
                 nsError,
                 depth: 0,
                 details: &details,
@@ -328,8 +398,24 @@ final class CloudKitSyncMonitor {
             )
         }
 
+        // A partial failure only carries record names. Resolve them while the
+        // local objects still exist, so the log can say which card or subject
+        // the mirror rejected instead of only its UUID.
+        let resolved = resolver.resolve(
+            recordNames: recordErrors.map(\.record),
+            operation: operation
+        )
+
+        for index in recordErrors.indices {
+            let result = resolved[index]
+
+            recordErrors[index].action = result.action
+            recordErrors[index].entity = result.entity
+            recordErrors[index].item = result.item
+        }
+
         return SyncFailure(
-            operation: operation(for: type),
+            operation: operation,
             message: message,
             domain: nsError?.domain,
             code: nsError?.code,

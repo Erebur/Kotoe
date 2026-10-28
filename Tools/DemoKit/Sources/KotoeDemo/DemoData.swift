@@ -302,20 +302,35 @@ enum DemoData {
     /// A monitor with a realistic partial export failure, for the sync log
     /// demo. The CloudKit observer is harmless because no mirror is running.
     static func syncMonitor() -> CloudKitSyncMonitor {
+        let summary = "What is the capital of France?"
+        let setName = "Geography"
+
         let records = [
             CloudKitSyncMonitor.SyncFailure.RecordError(
                 record: "CD_Flashcard_2F6C2B0D-9A4A-4A6E-9A75-2B6B4F0A7C11",
                 domain: "CKErrorDomain",
                 code: 12,
                 message: "Invalid arguments",
-                count: 2
+                count: 2,
+                action: .upload,
+                entity: "Flashcard",
+                item: String(
+                    localized: "contentView.syncLog.item.cardInSet",
+                    defaultValue: "Card “\(summary)” in “\(setName)”"
+                )
             ),
             CloudKitSyncMonitor.SyncFailure.RecordError(
                 record: "CD_FlashcardSide_6A1E5D31-2C68-4C8A-BA3F-1D8F2E9C4B02",
                 domain: "CKErrorDomain",
                 code: 12,
                 message: "Invalid arguments",
-                count: 1
+                count: 1,
+                action: .upload,
+                entity: "FlashcardSide",
+                item: String(
+                    localized: "contentView.syncLog.item.backSide",
+                    defaultValue: "Back of “\(summary)”"
+                )
             ),
         ]
 
