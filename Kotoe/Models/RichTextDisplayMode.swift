@@ -4,13 +4,14 @@
 //
 //  Created by Simon Weber on 26.10.26.
 //
-//  How a rich text field shows its content. Stored on the owning model so the
-//  choice is remembered per field and travels with the content through iCloud.
+//  How a rich text field shows its content. The mode is local to the field:
+//  it is never stored on the model, so a field starts in the mode its owner
+//  asks for (preview by default) each time it appears.
 //
 
 import Foundation
 
-enum RichTextDisplayMode: String, CaseIterable, Codable {
+enum RichTextDisplayMode: CaseIterable, Hashable {
     /// Only the markdown source, editable.
     case editor
 

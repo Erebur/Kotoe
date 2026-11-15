@@ -27,7 +27,7 @@ struct RichTextStyleGuideView: View {
                 attributedText: .constant(sample),
                 tint: KotoeTheme.accent,
                 showsStyleControls: false,
-                displayMode: .constant(.split),
+                initialMode: .split,
                 isEditable: false,
                 fillsHeight: true
             )
