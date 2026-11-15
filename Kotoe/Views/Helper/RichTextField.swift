@@ -21,9 +21,9 @@
 import SwiftUI
 
 #if os(macOS)
-import AppKit
+    import AppKit
 #else
-import UIKit
+    import UIKit
 #endif
 
 // MARK: - Rich text field
@@ -49,13 +49,13 @@ struct RichTextField: View {
     var submitsOnReturn: Bool = false
     var onSubmit: () -> Void = {}
 
-    /// Shows the style guide button and, when `displayMode` is set, the
-    /// editor / split / preview switch. Transient inputs turn both off.
+    /// Shows the style guide button and the editor / split / preview switch.
+    /// Transient inputs turn both off.
     var showsStyleControls: Bool = true
 
-    /// The field's saved display mode. `nil` hides the switch and keeps the
-    /// field in editor mode.
-    var displayMode: Binding<RichTextDisplayMode>? = nil
+    /// The mode the field shows when it appears. Not persisted: the switch and
+    /// a tap on the preview only change the field for the current visit.
+    var initialMode: RichTextDisplayMode = .preview
 
     /// Read-only fields are used by the style guide sheet.
     var isEditable: Bool = true
@@ -72,13 +72,12 @@ struct RichTextField: View {
 
     @State private var fieldWidth: CGFloat = 0
 
-    /// Below this width an iOS field is too narrow for the split view.
+    /// Below this width a field is too narrow for the split view.
     private let narrowWidthThreshold: CGFloat = 450
 
-    /// On a narrow iOS field, whether the user has tapped to enter editor
-    /// mode. The field opens in preview whatever was saved; tapping switches
-    /// to editor mode.
-    @State private var tappedToEdit = false
+    /// The mode chosen for the current visit. `nil` keeps the field at
+    /// `initialMode`; nothing is written back to the model.
+    @State private var chosenMode: RichTextDisplayMode?
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -86,21 +85,12 @@ struct RichTextField: View {
         ZStack(alignment: .topTrailing) {
             content
                 .frame(height: fillsHeight ? nil : contentHeight)
-                .simultaneousGesture(
-                    TapGesture().onEnded {
-                        #if os(iOS)
-                        if isNarrow && isEditable {
-                            tappedToEdit = true
-                            isFocused = true
-                        }
-                        #endif
-                    }
-                )
 
             if attributedText.string.isEmpty && !isFocused {
                 placeholderText
             }
-
+        }
+        .overlay(alignment: .topTrailing) {
             if showsStyleControls {
                 styleGuideButton
                     .padding(.top, 7)
@@ -110,15 +100,16 @@ struct RichTextField: View {
         .overlay(alignment: .bottomTrailing) {
             // The mode switch floats over the text so the field does not lose
             // a footer row to it.
-            if showsStyleControls, let displayMode {
+            if showsStyleControls {
                 RichTextModeSwitch(
-                    mode: modeSwitchBinding(displayMode),
+                    mode: modeSwitchBinding,
                     showsSplit: !isNarrow
                 )
                 .padding(.trailing, 8)
                 .padding(.bottom, 7)
             }
         }
+        .scrollIndicators(.never)
         .background(
             KotoeTheme.fieldBackground,
             in: RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -137,61 +128,52 @@ struct RichTextField: View {
         .sheet(isPresented: $showsStyleGuide) {
             RichTextStyleGuideView()
         }
-        .onChange(of: renderedMode) { _, newMode in
-            if newMode == .preview {
-                dismissKeyboard()
-            }
-        }
         .onChange(of: isFocused) { _, isFocused in
-            #if os(iOS)
-            // When focus leaves a narrow field, drop back to preview mode so
-            // the field returns to its read-only default once typing ends.
+            // When focus leaves a narrow field, drop back to preview so the
+            // field returns to its read-only resting state once typing ends.
             if isNarrow, !isFocused {
-                tappedToEdit = false
+                chosenMode = nil
             }
-            #endif
         }
     }
 
-    private var mode: RichTextDisplayMode {
-        displayMode?.wrappedValue ?? .editor
-    }
-
-    /// Whether the field is too narrow on iOS for the split view.
+    /// Whether the field is too narrow for the split view. Based on the
+    /// measured width, so it applies on every platform and window size.
     private var isNarrow: Bool {
-        #if os(iOS)
         fieldWidth < narrowWidthThreshold
-        #else
-        false
-        #endif
     }
 
-    /// The mode actually rendered. On narrow iOS fields the split view is
-    /// unavailable, preview is the default whatever was saved, and a tap
-    /// switches to editor mode.
+    /// The mode actually rendered. A narrow field cannot show the split view,
+    /// so it falls back to preview until a tap opens the editor.
     private var renderedMode: RichTextDisplayMode {
-        #if os(iOS)
-        if isNarrow {
-            return tappedToEdit ? .editor : .preview
+        let requested = chosenMode ?? initialMode
+        if isNarrow, requested == .split {
+            return .preview
         }
-        #endif
-        return mode
+        return requested
     }
 
-    /// On narrow iOS fields the switch drives the local tap-to-edit state so
-    /// split stays unavailable; on wider fields it writes the saved binding.
-    private func modeSwitchBinding(_ displayMode: Binding<RichTextDisplayMode>)
-        -> Binding<RichTextDisplayMode>
-    {
-        #if os(iOS)
-        if isNarrow {
-            return Binding(
-                get: { renderedMode },
-                set: { tappedToEdit = ($0 == .editor) }
-            )
-        }
-        #endif
-        return displayMode
+    /// The switch changes the mode for this visit only. Choosing an editable
+    /// mode focuses the text view so the field is ready to type in.
+    private var modeSwitchBinding: Binding<RichTextDisplayMode> {
+        Binding(
+            get: { renderedMode },
+            set: { newMode in
+                chosenMode = newMode
+                isFocused = newMode != .preview
+                if newMode == .preview {
+                    dismissKeyboard()
+                }
+            }
+        )
+    }
+
+    /// Opens the previewed field for editing: the split view when there is
+    /// room, otherwise the source editor. Focus follows the tap.
+    private func openEditor() {
+        guard isEditable else { return }
+        chosenMode = isNarrow ? .editor : .split
+        isFocused = true
     }
 
     private var appearance: MarkdownAppearance {
@@ -214,6 +196,15 @@ struct RichTextField: View {
 
                 previewPane(sync: nil)
             }
+            .contentShape(Rectangle())
+            // Tapping the read-only preview opens the field. The gesture stays
+            // off the editor itself so it cannot swallow the tap that places
+            // the insertion point.
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    openEditor()
+                }
+            )
 
         case .split:
             // The visible editor is only half as wide and would measure more
@@ -240,12 +231,12 @@ struct RichTextField: View {
             onSubmit: onSubmit,
             isEditable: editable ?? isEditable,
             bottomInset: floatingSwitch ? 30 : 0,
+            // Only the full-width editor has its scroller under the info
+            // button; the split editor's scroller sits in the middle.
+            topInset: renderedMode == .editor ? scrollIndicatorTopInset : 0,
             appearance: appearance,
             sync: sync
         )
-        // Reserve room for the info button without shifting the text's left
-        // edge; the text views inset both sides equally.
-        .padding(.trailing, showsStyleControls ? 23 : 0)
     }
 
     /// Invisible, read-only full-width editor used only to measure the text
@@ -260,17 +251,17 @@ struct RichTextField: View {
     @ViewBuilder
     private var splitContent: some View {
         #if os(macOS)
-        HStack(spacing: 0) {
-            editor(height: $splitEditorHeight, sync: splitSync)
-            Divider().opacity(0.5)
-            previewPane(sync: splitSync)
-        }
+            HStack(spacing: 0) {
+                editor(height: $splitEditorHeight, sync: splitSync)
+                Divider().opacity(0.5)
+                previewPane(sync: splitSync)
+            }
         #else
-        VStack(spacing: 0) {
-            editor(height: $splitEditorHeight, sync: splitSync)
-            Divider().opacity(0.5)
-            previewPane(sync: splitSync)
-        }
+            VStack(spacing: 0) {
+                editor(height: $splitEditorHeight, sync: splitSync)
+                Divider().opacity(0.5)
+                previewPane(sync: splitSync)
+            }
         #endif
     }
 
@@ -278,6 +269,7 @@ struct RichTextField: View {
         RichTextPreview(
             attributedText: renderedPreview,
             bottomInset: floatingSwitch ? 28 : 0,
+            topInset: scrollIndicatorTopInset,
             trailingInset: showsStyleControls ? 21 : 0,
             sync: sync
         )
@@ -299,7 +291,13 @@ struct RichTextField: View {
 
     /// Whether the mode switch floats over the text.
     private var floatingSwitch: Bool {
-        showsStyleControls && displayMode != nil
+        showsStyleControls
+    }
+
+    /// Vertical room the info button takes at the top trailing corner. The
+    /// scroll indicators start below it instead of running behind the icon.
+    private var scrollIndicatorTopInset: CGFloat {
+        showsStyleControls ? 30 : 0
     }
 
     private var styleGuideButton: some View {
@@ -341,14 +339,14 @@ struct RichTextField: View {
 
     private func dismissKeyboard() {
         #if os(macOS)
-        NSApp.keyWindow?.makeFirstResponder(nil)
+            NSApp.keyWindow?.makeFirstResponder(nil)
         #else
-        UIApplication.shared.sendAction(
-            #selector(UIResponder.resignFirstResponder),
-            to: nil,
-            from: nil,
-            for: nil
-        )
+            UIApplication.shared.sendAction(
+                #selector(UIResponder.resignFirstResponder),
+                to: nil,
+                from: nil,
+                for: nil
+            )
         #endif
     }
 }
@@ -360,7 +358,7 @@ private struct RichTextModeSwitch: View {
 
     @Binding var mode: RichTextDisplayMode
 
-    /// Whether the split option is offered. Hidden on narrow iOS fields.
+    /// Whether the split option is offered. Hidden on narrow fields.
     var showsSplit: Bool = true
 
     /// Modes offered by the switch.
@@ -486,12 +484,14 @@ enum MarkdownListContinuation {
                 length: lineRange.upperBound - selection.location
             )
         )
-        let hasTextAfterCaret = !restOfLine
+        let hasTextAfterCaret =
+            !restOfLine
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .isEmpty
 
         if content.trimmingCharacters(in: .whitespaces).isEmpty,
-           !hasTextAfterCaret {
+            !hasTextAfterCaret
+        {
             return Edit(
                 range: NSRange(location: lineStart, length: prefixLength),
                 replacement: ""
@@ -502,8 +502,9 @@ enum MarkdownListContinuation {
         if isTask {
             nextMarker = "- [ ]"
         } else if marker.hasSuffix("."),
-                  let number = Int(marker.dropLast()),
-                  number < Int.max {
+            let number = Int(marker.dropLast()),
+            number < Int.max
+        {
             nextMarker = "\(number + 1)."
         } else {
             nextMarker = marker
@@ -526,542 +527,566 @@ enum MarkdownListContinuation {
 
 #if os(macOS)
 
-struct RichTextEditor: NSViewRepresentable {
+    struct RichTextEditor: NSViewRepresentable {
 
-    @Binding var attributedText: NSAttributedString
-    @Binding var isFocused: Bool
-    @Binding var height: CGFloat
-    let submitsOnReturn: Bool
-    let onSubmit: () -> Void
-    let isEditable: Bool
-    let bottomInset: CGFloat
-    let appearance: MarkdownAppearance
-    let sync: SplitScrollSync?
+        @Binding var attributedText: NSAttributedString
+        @Binding var isFocused: Bool
+        @Binding var height: CGFloat
+        let submitsOnReturn: Bool
+        let onSubmit: () -> Void
+        let isEditable: Bool
+        let bottomInset: CGFloat
+        /// Room at the top trailing corner for the info button; the scroll
+        /// indicator starts below it.
+        let topInset: CGFloat
+        let appearance: MarkdownAppearance
+        let sync: SplitScrollSync?
 
-    static var systemFont: FormatFont {
-        NSFont.systemFont(ofSize: NSFont.systemFontSize)
-    }
-
-    var style: MarkdownFormatter.Style {
-        MarkdownFormatter.Style(
-            baseFont: Self.systemFont,
-            appearance: appearance
-        )
-    }
-
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = RichTextScrollView()
-        scrollView.drawsBackground = false
-        scrollView.borderType = .noBorder
-        scrollView.hasVerticalScroller = true
-        scrollView.autohidesScrollers = true
-        scrollView.automaticallyAdjustsContentInsets = false
-        scrollView.contentInsets = NSEdgeInsets(
-            top: 0,
-            left: 0,
-            bottom: bottomInset,
-            right: 0
-        )
-
-        let textView = NSTextView()
-        textView.isRichText = true
-        textView.isEditable = isEditable
-        textView.isSelectable = isEditable
-        textView.drawsBackground = false
-        textView.backgroundColor = .clear
-        textView.font = Self.systemFont
-        textView.usesRuler = false
-        textView.usesFontPanel = false
-        textView.allowsUndo = true
-        textView.isAutomaticQuoteSubstitutionEnabled = true
-        textView.isAutomaticDashSubstitutionEnabled = false
-        textView.isAutomaticTextReplacementEnabled = true
-        textView.isAutomaticSpellingCorrectionEnabled = true
-        textView.isContinuousSpellCheckingEnabled = true
-        textView.isGrammarCheckingEnabled = true
-        textView.isAutomaticTextCompletionEnabled = true
-        textView.isAutomaticLinkDetectionEnabled = true
-
-        textView.isHorizontallyResizable = false
-        textView.isVerticallyResizable = true
-        textView.autoresizingMask = [.width]
-        textView.textContainer?.widthTracksTextView = true
-        textView.textContainer?.heightTracksTextView = false
-        textView.textContainer?.lineFragmentPadding = 0
-        textView.minSize = NSSize(width: 0, height: 0)
-        textView.maxSize = NSSize(
-            width: CGFloat.greatestFiniteMagnitude,
-            height: CGFloat.greatestFiniteMagnitude
-        )
-        textView.textContainerInset = NSSize(width: 13, height: 11)
-        textView.typingAttributes = MarkdownFormatter.typingAttributes(for: style)
-
-        scrollView.documentView = textView
-
-        context.coordinator.textView = textView
-        textView.delegate = context.coordinator
-
-        if textView.textStorage?.string != attributedText.string {
-            textView.textStorage?.setAttributedString(attributedText)
-        }
-        context.coordinator.bindings = self
-        DispatchQueue.main.async {
-            context.coordinator.restyle()
+        static var systemFont: FormatFont {
+            NSFont.systemFont(ofSize: NSFont.systemFontSize)
         }
 
-        context.coordinator.sync = sync
-        sync?.attach(scrollView, as: .editor)
-
-        return scrollView
-    }
-
-    static func dismantleNSView(
-        _ scrollView: NSScrollView,
-        coordinator: Coordinator
-    ) {
-        coordinator.sync?.detach(scrollView)
-        coordinator.sync = nil
-    }
-
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard let textView = scrollView.documentView as? NSTextView else {
-            return
-        }
-        context.coordinator.bindings = self
-
-        if context.coordinator.sync !== sync {
-            context.coordinator.sync?.detach(scrollView)
-            context.coordinator.sync = sync
-            sync?.attach(scrollView, as: .editor)
+        var style: MarkdownFormatter.Style {
+            MarkdownFormatter.Style(
+                baseFont: Self.systemFont,
+                appearance: appearance
+            )
         }
 
-        if context.coordinator.styledAppearance != appearance {
+        func makeNSView(context: Context) -> NSScrollView {
+            let scrollView = RichTextScrollView()
+            scrollView.drawsBackground = false
+            scrollView.borderType = .noBorder
+            scrollView.hasVerticalScroller = true
+            scrollView.scrollerStyle = .overlay
+            scrollView.automaticallyAdjustsContentInsets = false
+            let textView = NSTextView()
+            textView.isRichText = true
+            textView.isEditable = isEditable
+            textView.isSelectable = isEditable
+            textView.drawsBackground = false
+            textView.backgroundColor = .clear
+            textView.font = Self.systemFont
+            textView.usesRuler = false
+            textView.usesFontPanel = false
+            textView.allowsUndo = true
+            textView.isAutomaticQuoteSubstitutionEnabled = true
+            textView.isAutomaticDashSubstitutionEnabled = false
+            textView.isAutomaticTextReplacementEnabled = true
+            textView.isAutomaticSpellingCorrectionEnabled = true
+            textView.isContinuousSpellCheckingEnabled = true
+            textView.isGrammarCheckingEnabled = true
+            textView.isAutomaticTextCompletionEnabled = true
+            textView.isAutomaticLinkDetectionEnabled = true
+
+            textView.isHorizontallyResizable = false
+            textView.isVerticallyResizable = true
+            textView.autoresizingMask = [.width]
+            textView.textContainer?.widthTracksTextView = true
+            textView.textContainer?.heightTracksTextView = false
+            textView.textContainer?.lineFragmentPadding = 0
+            textView.minSize = NSSize(width: 0, height: 0)
+            textView.maxSize = NSSize(
+                width: CGFloat.greatestFiniteMagnitude,
+                height: CGFloat.greatestFiniteMagnitude
+            )
+            textView.textContainerInset = NSSize(width: 13, height: 11)
+            textView.typingAttributes = MarkdownFormatter.typingAttributes(for: style)
+
+            scrollView.documentView = textView
+
+            context.coordinator.textView = textView
+            textView.delegate = context.coordinator
+
+            if textView.textStorage?.string != attributedText.string {
+                textView.textStorage?.setAttributedString(attributedText)
+            }
+            context.coordinator.bindings = self
             DispatchQueue.main.async {
                 context.coordinator.restyle()
             }
+
+            context.coordinator.sync = sync
+            sync?.attach(scrollView, as: .editor)
+
+            return scrollView
         }
 
-        textView.isEditable = isEditable
-        textView.isSelectable = isEditable
-        scrollView.contentInsets = NSEdgeInsets(
-            top: 0,
-            left: 0,
-            bottom: bottomInset,
-            right: 0
-        )
+        static func dismantleNSView(
+            _ scrollView: NSScrollView,
+            coordinator: Coordinator
+        ) {
+            coordinator.sync?.detach(scrollView)
+            coordinator.sync = nil
+        }
 
-        if !context.coordinator.isProgrammaticChange,
-           !textView.hasMarkedText() {
-            let current = textView.textStorage?.string ?? ""
-            if current != attributedText.string {
-                context.coordinator.isProgrammaticChange = true
-                textView.textStorage?.setAttributedString(attributedText)
-                context.coordinator.isProgrammaticChange = false
+        func updateNSView(_ scrollView: NSScrollView, context: Context) {
+            guard let textView = scrollView.documentView as? NSTextView else {
+                return
+            }
+            context.coordinator.bindings = self
 
+            if context.coordinator.sync !== sync {
+                context.coordinator.sync?.detach(scrollView)
+                context.coordinator.sync = sync
+                sync?.attach(scrollView, as: .editor)
+            }
+
+            if context.coordinator.styledAppearance != appearance {
                 DispatchQueue.main.async {
                     context.coordinator.restyle()
                 }
             }
+
+            textView.isEditable = isEditable
+            textView.isSelectable = isEditable
+            scrollView.scrollerInsets = NSEdgeInsets(
+                top: topInset,
+                left: 0,
+                bottom: 0,
+                right: 0
+            )
+            scrollView.contentInsets = NSEdgeInsets(
+                top: 0,
+                left: 0,
+                bottom: bottomInset,
+                right: 0
+            )
+
+            if !context.coordinator.isProgrammaticChange,
+                !textView.hasMarkedText()
+            {
+                let current = textView.textStorage?.string ?? ""
+                if current != attributedText.string {
+                    context.coordinator.isProgrammaticChange = true
+                    textView.textStorage?.setAttributedString(attributedText)
+                    context.coordinator.isProgrammaticChange = false
+
+                    DispatchQueue.main.async {
+                        context.coordinator.restyle()
+                    }
+                }
+            }
+
+            // A programmatically focused field becomes first responder. The
+            // delegate already reports when the user focuses or leaves the text
+            // view, so never resign here: a stale `isFocused` would steal focus
+            // from a field the user just clicked.
+            if isEditable, isFocused, let window = textView.window {
+                let isFirstResponder = window.firstResponder === textView
+                if !isFirstResponder {
+                    DispatchQueue.main.async {
+                        window.makeFirstResponder(textView)
+                    }
+                }
+            }
+
+            context.coordinator.reportHeight()
         }
 
-        // Focus changes made by the parent keep the text view in sync too, so
-        // a programmatically focused field really becomes first responder.
-        if isEditable, let window = textView.window {
-            let isFirstResponder = window.firstResponder === textView
-            if isFocused, !isFirstResponder {
+        func makeCoordinator() -> Coordinator {
+            Coordinator()
+        }
+
+        final class Coordinator: NSObject, NSTextViewDelegate {
+
+            weak var textView: NSTextView?
+            var bindings: RichTextEditor?
+            var isProgrammaticChange = false
+            var styledAppearance: MarkdownAppearance?
+            var sync: SplitScrollSync?
+
+            /// Re-applies markdown attributes without touching a single character.
+            func restyle() {
+                guard let textView, let bindings else { return }
+                guard !textView.hasMarkedText() else { return }
+                guard let storage = textView.textStorage else { return }
+
+                let style = bindings.style
+                styledAppearance = bindings.appearance
+                let styled = MarkdownFormatter.styledSource(
+                    storage.string,
+                    style: style
+                )
+                guard styled.length == storage.length else { return }
+
+                let fullRange = NSRange(location: 0, length: storage.length)
+
+                storage.beginEditing()
+                styled.enumerateAttributes(in: fullRange, options: []) {
+                    attributes,
+                    range,
+                    _ in
+                    storage.setAttributes(attributes, range: range)
+                }
+                storage.endEditing()
+
+                textView.typingAttributes = MarkdownFormatter.typingAttributes(
+                    for: style
+                )
+
+                bindings.attributedText = storage.attributedSubstring(
+                    from: fullRange
+                )
+
+                reportHeight()
+            }
+
+            func reportHeight() {
+                guard let textView, let bindings else { return }
+                guard let layoutManager = textView.layoutManager,
+                    let container = textView.textContainer
+                else { return }
+
+                layoutManager.ensureLayout(for: container)
+                let used = layoutManager.usedRect(for: container).height
+                let fitted = used + textView.textContainerInset.height * 2
+
                 DispatchQueue.main.async {
-                    window.makeFirstResponder(textView)
-                }
-            } else if !isFocused, isFirstResponder {
-                DispatchQueue.main.async {
-                    window.makeFirstResponder(nil)
+                    if abs(fitted - bindings.height) > 0.5 {
+                        bindings.height = fitted
+                    }
                 }
             }
-        }
 
-        context.coordinator.reportHeight()
-    }
+            // MARK: NSTextViewDelegate
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    final class Coordinator: NSObject, NSTextViewDelegate {
-
-        weak var textView: NSTextView?
-        var bindings: RichTextEditor?
-        var isProgrammaticChange = false
-        var styledAppearance: MarkdownAppearance?
-        var sync: SplitScrollSync?
-
-        /// Re-applies markdown attributes without touching a single character.
-        func restyle() {
-            guard let textView, let bindings else { return }
-            guard !textView.hasMarkedText() else { return }
-            guard let storage = textView.textStorage else { return }
-
-            let style = bindings.style
-            styledAppearance = bindings.appearance
-            let styled = MarkdownFormatter.styledSource(
-                storage.string,
-                style: style
-            )
-            guard styled.length == storage.length else { return }
-
-            let fullRange = NSRange(location: 0, length: storage.length)
-
-            storage.beginEditing()
-            styled.enumerateAttributes(in: fullRange, options: []) {
-                attributes,
-                range,
-                _ in
-                storage.setAttributes(attributes, range: range)
+            func textDidChange(_ notification: Notification) {
+                guard !isProgrammaticChange else { return }
+                restyle()
             }
-            storage.endEditing()
 
-            textView.typingAttributes = MarkdownFormatter.typingAttributes(
-                for: style
-            )
+            func textDidBeginEditing(_ notification: Notification) {
+                guard let bindings else { return }
+                bindings.isFocused = true
+            }
 
-            bindings.attributedText = storage.attributedSubstring(
-                from: fullRange
-            )
+            func textDidEndEditing(_ notification: Notification) {
+                guard let bindings else { return }
+                bindings.isFocused = false
+            }
 
-            reportHeight()
-        }
+            func textView(
+                _ textView: NSTextView,
+                doCommandBy commandSelector: Selector
+            ) -> Bool {
+                guard commandSelector == #selector(NSResponder.insertNewline(_:))
+                else { return false }
+                guard let bindings else { return false }
 
-        func reportHeight() {
-            guard let textView, let bindings else { return }
-            guard let layoutManager = textView.layoutManager,
-                  let container = textView.textContainer else { return }
-
-            layoutManager.ensureLayout(for: container)
-            let used = layoutManager.usedRect(for: container).height
-            let fitted = used + textView.textContainerInset.height * 2
-
-            DispatchQueue.main.async {
-                if abs(fitted - bindings.height) > 0.5 {
-                    bindings.height = fitted
+                if bindings.submitsOnReturn {
+                    bindings.onSubmit()
+                    return true
                 }
-            }
-        }
 
-        // MARK: NSTextViewDelegate
+                let selection = textView.selectedRange()
+                guard
+                    let edit = MarkdownListContinuation.edit(
+                        for: textView.string as NSString,
+                        selection: selection
+                    )
+                else { return false }
 
-        func textDidChange(_ notification: Notification) {
-            guard !isProgrammaticChange else { return }
-            restyle()
-        }
+                // `replaceCharacters` alone skips the delegate, undo and binding
+                // updates, so the edit would be lost on the next view update.
+                guard
+                    textView.shouldChangeText(
+                        in: edit.range,
+                        replacementString: edit.replacement
+                    )
+                else { return true }
 
-        func textDidBeginEditing(_ notification: Notification) {
-            guard let bindings else { return }
-            bindings.isFocused = true
-        }
-
-        func textDidEndEditing(_ notification: Notification) {
-            guard let bindings else { return }
-            bindings.isFocused = false
-        }
-
-        func textView(
-            _ textView: NSTextView,
-            doCommandBy commandSelector: Selector
-        ) -> Bool {
-            guard commandSelector == #selector(NSResponder.insertNewline(_:))
-            else { return false }
-            guard let bindings else { return false }
-
-            if bindings.submitsOnReturn {
-                bindings.onSubmit()
+                textView.replaceCharacters(
+                    in: edit.range,
+                    with: edit.replacement
+                )
+                textView.setSelectedRange(
+                    MarkdownListContinuation.selection(
+                        after: edit,
+                        at: edit.range.location
+                    )
+                )
+                textView.didChangeText()
                 return true
             }
-
-            let selection = textView.selectedRange()
-            guard let edit = MarkdownListContinuation.edit(
-                for: textView.string as NSString,
-                selection: selection
-            ) else { return false }
-
-            // `replaceCharacters` alone skips the delegate, undo and binding
-            // updates, so the edit would be lost on the next view update.
-            guard textView.shouldChangeText(
-                in: edit.range,
-                replacementString: edit.replacement
-            ) else { return true }
-
-            textView.replaceCharacters(
-                in: edit.range,
-                with: edit.replacement
-            )
-            textView.setSelectedRange(
-                MarkdownListContinuation.selection(
-                    after: edit,
-                    at: edit.range.location
-                )
-            )
-            textView.didChangeText()
-            return true
         }
     }
-}
 
 #else
 
-// MARK: - Native text editor (iOS)
+    // MARK: - Native text editor (iOS)
 
-struct RichTextEditor: UIViewRepresentable {
+    struct RichTextEditor: UIViewRepresentable {
 
-    @Binding var attributedText: NSAttributedString
-    @Binding var isFocused: Bool
-    @Binding var height: CGFloat
-    let submitsOnReturn: Bool
-    let onSubmit: () -> Void
-    let isEditable: Bool
-    let bottomInset: CGFloat
-    let appearance: MarkdownAppearance
-    let sync: SplitScrollSync?
+        @Binding var attributedText: NSAttributedString
+        @Binding var isFocused: Bool
+        @Binding var height: CGFloat
+        let submitsOnReturn: Bool
+        let onSubmit: () -> Void
+        let isEditable: Bool
+        let bottomInset: CGFloat
+        /// Room at the top trailing corner for the info button; the scroll
+        /// indicator starts below it.
+        let topInset: CGFloat
+        let appearance: MarkdownAppearance
+        let sync: SplitScrollSync?
 
-    static var systemFont: FormatFont {
-        UIFont.preferredFont(forTextStyle: .body)
-    }
-
-    var style: MarkdownFormatter.Style {
-        MarkdownFormatter.Style(
-            baseFont: Self.systemFont,
-            appearance: appearance
-        )
-    }
-
-    func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
-        textView.backgroundColor = .clear
-        textView.isScrollEnabled = true
-        textView.isEditable = isEditable
-        textView.isSelectable = isEditable
-        textView.contentInset = UIEdgeInsets(
-            top: 0,
-            left: 0,
-            bottom: bottomInset,
-            right: 0
-        )
-        textView.showsVerticalScrollIndicator = true
-        textView.alwaysBounceVertical = false
-        textView.textContainerInset = UIEdgeInsets(
-            top: 11,
-            left: 13,
-            bottom: 11,
-            right: 13
-        )
-        textView.textContainer.lineFragmentPadding = 0
-        textView.font = Self.systemFont
-
-        // Native text features stay on: autocorrection, spell checking,
-        // smart punctuation, inline predictions and the undo stack.
-        textView.autocorrectionType = .default
-        textView.spellCheckingType = .default
-        textView.smartQuotesType = .default
-        textView.smartDashesType = .no
-        textView.smartInsertDeleteType = .default
-        textView.allowsEditingTextAttributes = true
-        textView.typingAttributes = MarkdownFormatter.typingAttributes(
-            for: style
-        )
-
-        textView.delegate = context.coordinator
-
-        if textView.attributedText.string != attributedText.string {
-            textView.attributedText = attributedText
-        }
-        context.coordinator.textView = textView
-        context.coordinator.bindings = self
-        DispatchQueue.main.async {
-            context.coordinator.restyle()
+        static var systemFont: FormatFont {
+            UIFont.preferredFont(forTextStyle: .body)
         }
 
-        context.coordinator.sync = sync
-        sync?.attach(textView, as: .editor)
-
-        return textView
-    }
-
-    static func dismantleUIView(
-        _ textView: UITextView,
-        coordinator: Coordinator
-    ) {
-        coordinator.sync?.detach(textView)
-        coordinator.sync = nil
-    }
-
-    func updateUIView(_ textView: UITextView, context: Context) {
-        context.coordinator.textView = textView
-        context.coordinator.bindings = self
-
-        if context.coordinator.sync !== sync {
-            context.coordinator.sync?.detach(textView)
-            context.coordinator.sync = sync
-            sync?.attach(textView, as: .editor)
-        }
-
-        if context.coordinator.styledAppearance != appearance {
-            DispatchQueue.main.async {
-                context.coordinator.restyle()
-            }
-        }
-
-        textView.isEditable = isEditable
-        textView.isSelectable = isEditable
-        textView.contentInset = UIEdgeInsets(
-            top: 0,
-            left: 0,
-            bottom: bottomInset,
-            right: 0
-        )
-
-        if !context.coordinator.isProgrammaticChange,
-           textView.markedTextRange == nil {
-            if textView.attributedText.string != attributedText.string {
-                context.coordinator.isProgrammaticChange = true
-                textView.attributedText = attributedText
-                context.coordinator.isProgrammaticChange = false
-
-                DispatchQueue.main.async {
-                    context.coordinator.restyle()
-                }
-            }
-        }
-
-        // When the field was just switched into editor mode on a narrow iOS
-        // field, open the keyboard so the user can type right away. The
-        // invisible measuring editor is not editable, so it never steals focus.
-        if isEditable, isFocused, textView.window != nil, !textView.isFirstResponder {
-            DispatchQueue.main.async {
-                textView.becomeFirstResponder()
-            }
-        }
-
-        context.coordinator.reportHeight()
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    final class Coordinator: NSObject, UITextViewDelegate {
-
-        weak var textView: UITextView?
-        var bindings: RichTextEditor?
-        var isProgrammaticChange = false
-        var styledAppearance: MarkdownAppearance?
-        var sync: SplitScrollSync?
-
-        /// Re-applies markdown attributes without touching a single character.
-        func restyle() {
-            guard let textView, let bindings else { return }
-            guard textView.markedTextRange == nil else { return }
-
-            let storage = textView.textStorage
-            let style = bindings.style
-            styledAppearance = bindings.appearance
-            let styled = MarkdownFormatter.styledSource(
-                storage.string,
-                style: style
+        var style: MarkdownFormatter.Style {
+            MarkdownFormatter.Style(
+                baseFont: Self.systemFont,
+                appearance: appearance
             )
-            guard styled.length == storage.length else { return }
+        }
 
-            let fullRange = NSRange(location: 0, length: storage.length)
+        func makeUIView(context: Context) -> UITextView {
+            let textView = UITextView()
+            textView.backgroundColor = .clear
+            textView.isScrollEnabled = true
+            textView.isEditable = isEditable
+            textView.isSelectable = isEditable
+            textView.contentInset = UIEdgeInsets(
+                top: 0,
+                left: 0,
+                bottom: bottomInset,
+                right: 0
+            )
+            textView.showsVerticalScrollIndicator = true
+            textView.verticalScrollIndicatorInsets = UIEdgeInsets(
+                top: topInset,
+                left: 0,
+                bottom: 0,
+                right: 0
+            )
+            textView.alwaysBounceVertical = false
+            textView.textContainerInset = UIEdgeInsets(
+                top: 11,
+                left: 13,
+                bottom: 11,
+                right: 13
+            )
+            textView.textContainer.lineFragmentPadding = 0
+            textView.font = Self.systemFont
 
-            storage.beginEditing()
-            styled.enumerateAttributes(in: fullRange, options: []) {
-                attributes,
-                range,
-                _ in
-                storage.setAttributes(attributes, range: range)
-            }
-            storage.endEditing()
-
+            // Native text features stay on: autocorrection, spell checking,
+            // smart punctuation, inline predictions and the undo stack.
+            textView.autocorrectionType = .default
+            textView.spellCheckingType = .default
+            textView.smartQuotesType = .default
+            textView.smartDashesType = .no
+            textView.smartInsertDeleteType = .default
+            textView.allowsEditingTextAttributes = true
             textView.typingAttributes = MarkdownFormatter.typingAttributes(
                 for: style
             )
 
-            bindings.attributedText = storage.attributedSubstring(
-                from: fullRange
-            )
+            textView.delegate = context.coordinator
 
-            reportHeight()
+            if textView.attributedText.string != attributedText.string {
+                textView.attributedText = attributedText
+            }
+            context.coordinator.textView = textView
+            context.coordinator.bindings = self
+            DispatchQueue.main.async {
+                context.coordinator.restyle()
+            }
+
+            context.coordinator.sync = sync
+            sync?.attach(textView, as: .editor)
+
+            return textView
         }
 
-        func reportHeight() {
-            guard let textView, let bindings else { return }
+        static func dismantleUIView(
+            _ textView: UITextView,
+            coordinator: Coordinator
+        ) {
+            coordinator.sync?.detach(textView)
+            coordinator.sync = nil
+        }
 
-            let fitted = textView.sizeThatFits(
-                CGSize(
-                    width: textView.bounds.width,
-                    height: CGFloat.greatestFiniteMagnitude
-                )
-            ).height
+        func updateUIView(_ textView: UITextView, context: Context) {
+            context.coordinator.textView = textView
+            context.coordinator.bindings = self
 
-            DispatchQueue.main.async {
-                if abs(fitted - bindings.height) > 0.5 {
-                    bindings.height = fitted
+            if context.coordinator.sync !== sync {
+                context.coordinator.sync?.detach(textView)
+                context.coordinator.sync = sync
+                sync?.attach(textView, as: .editor)
+            }
+
+            if context.coordinator.styledAppearance != appearance {
+                DispatchQueue.main.async {
+                    context.coordinator.restyle()
                 }
             }
-        }
 
-        // MARK: UITextViewDelegate
+            textView.isEditable = isEditable
+            textView.isSelectable = isEditable
+            textView.verticalScrollIndicatorInsets = UIEdgeInsets(
+                top: topInset,
+                left: 0,
+                bottom: 0,
+                right: 0
+            )
+            textView.contentInset = UIEdgeInsets(
+                top: 0,
+                left: 0,
+                bottom: bottomInset,
+                right: 0
+            )
 
-        func textViewDidChange(_ textView: UITextView) {
-            guard !isProgrammaticChange else { return }
-            restyle()
-        }
+            if !context.coordinator.isProgrammaticChange,
+                textView.markedTextRange == nil
+            {
+                if textView.attributedText.string != attributedText.string {
+                    context.coordinator.isProgrammaticChange = true
+                    textView.attributedText = attributedText
+                    context.coordinator.isProgrammaticChange = false
 
-        func textViewDidBeginEditing(_ textView: UITextView) {
-            guard let bindings else { return }
-            bindings.isFocused = true
-        }
-
-        func textViewDidEndEditing(_ textView: UITextView) {
-            guard let bindings else { return }
-            bindings.isFocused = false
-        }
-
-        func textView(
-            _ textView: UITextView,
-            shouldChangeTextIn range: NSRange,
-            replacementText text: String
-        ) -> Bool {
-            guard text == "\n" else { return true }
-
-            if let bindings, bindings.submitsOnReturn {
-                bindings.onSubmit()
-                return false
+                    DispatchQueue.main.async {
+                        context.coordinator.restyle()
+                    }
+                }
             }
 
-            guard let edit = MarkdownListContinuation.edit(
-                for: textView.text as NSString,
-                selection: range
-            ) else { return true }
+            // When the field was just switched into editor mode on a narrow iOS
+            // field, open the keyboard so the user can type right away. The
+            // invisible measuring editor is not editable, so it never steals focus.
+            if isEditable, isFocused, textView.window != nil, !textView.isFirstResponder {
+                DispatchQueue.main.async {
+                    textView.becomeFirstResponder()
+                }
+            }
 
-            guard
-                let start = textView.position(
-                    from: textView.beginningOfDocument,
-                    offset: edit.range.location
-                ),
-                let end = textView.position(
-                    from: start,
-                    offset: edit.range.length
-                ),
-                let textRange = textView.textRange(from: start, to: end)
-            else { return true }
+            context.coordinator.reportHeight()
+        }
 
-            textView.replace(textRange, withText: edit.replacement)
-            textView.selectedRange = MarkdownListContinuation.selection(
-                after: edit,
-                at: edit.range.location
-            )
-            return false
+        func makeCoordinator() -> Coordinator {
+            Coordinator()
+        }
+
+        final class Coordinator: NSObject, UITextViewDelegate {
+
+            weak var textView: UITextView?
+            var bindings: RichTextEditor?
+            var isProgrammaticChange = false
+            var styledAppearance: MarkdownAppearance?
+            var sync: SplitScrollSync?
+
+            /// Re-applies markdown attributes without touching a single character.
+            func restyle() {
+                guard let textView, let bindings else { return }
+                guard textView.markedTextRange == nil else { return }
+
+                let storage = textView.textStorage
+                let style = bindings.style
+                styledAppearance = bindings.appearance
+                let styled = MarkdownFormatter.styledSource(
+                    storage.string,
+                    style: style
+                )
+                guard styled.length == storage.length else { return }
+
+                let fullRange = NSRange(location: 0, length: storage.length)
+
+                storage.beginEditing()
+                styled.enumerateAttributes(in: fullRange, options: []) {
+                    attributes,
+                    range,
+                    _ in
+                    storage.setAttributes(attributes, range: range)
+                }
+                storage.endEditing()
+
+                textView.typingAttributes = MarkdownFormatter.typingAttributes(
+                    for: style
+                )
+
+                bindings.attributedText = storage.attributedSubstring(
+                    from: fullRange
+                )
+
+                reportHeight()
+            }
+
+            func reportHeight() {
+                guard let textView, let bindings else { return }
+
+                let fitted = textView.sizeThatFits(
+                    CGSize(
+                        width: textView.bounds.width,
+                        height: CGFloat.greatestFiniteMagnitude
+                    )
+                ).height
+
+                DispatchQueue.main.async {
+                    if abs(fitted - bindings.height) > 0.5 {
+                        bindings.height = fitted
+                    }
+                }
+            }
+
+            // MARK: UITextViewDelegate
+
+            func textViewDidChange(_ textView: UITextView) {
+                guard !isProgrammaticChange else { return }
+                restyle()
+            }
+
+            func textViewDidBeginEditing(_ textView: UITextView) {
+                guard let bindings else { return }
+                bindings.isFocused = true
+            }
+
+            func textViewDidEndEditing(_ textView: UITextView) {
+                guard let bindings else { return }
+                bindings.isFocused = false
+            }
+
+            func textView(
+                _ textView: UITextView,
+                shouldChangeTextIn range: NSRange,
+                replacementText text: String
+            ) -> Bool {
+                guard text == "\n" else { return true }
+
+                if let bindings, bindings.submitsOnReturn {
+                    bindings.onSubmit()
+                    return false
+                }
+
+                guard
+                    let edit = MarkdownListContinuation.edit(
+                        for: textView.text as NSString,
+                        selection: range
+                    )
+                else { return true }
+
+                guard
+                    let start = textView.position(
+                        from: textView.beginningOfDocument,
+                        offset: edit.range.location
+                    ),
+                    let end = textView.position(
+                        from: start,
+                        offset: edit.range.length
+                    ),
+                    let textRange = textView.textRange(from: start, to: end)
+                else { return true }
+
+                textView.replace(textRange, withText: edit.replacement)
+                textView.selectedRange = MarkdownListContinuation.selection(
+                    after: edit,
+                    at: edit.range.location
+                )
+                return false
+            }
         }
     }
-}
 
 #endif
 
@@ -1086,15 +1111,15 @@ extension NSAttributedString {
 #Preview("Rich Text Field") {
     let attributed = NSAttributedString(
         string: """
-        # Heading
+            # Heading
 
-        Type here. Markdown works:
+            Type here. Markdown works:
 
-        * first item
-        * second item
+            * first item
+            * second item
 
-        **bold**, *italic*, `code`, and $x^2 + y^2 = z^2$.
-        """
+            **bold**, *italic*, `code`, and $x^2 + y^2 = z^2$.
+            """
     )
 
     return VStack(alignment: .leading, spacing: 20) {
@@ -1103,7 +1128,7 @@ extension NSAttributedString {
             attributedText: .constant(attributed),
             minHeight: 160,
             maxHeight: 300,
-            displayMode: .constant(.split)
+            initialMode: .split
         )
         .frame(width: 360)
 

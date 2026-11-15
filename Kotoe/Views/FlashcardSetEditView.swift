@@ -306,8 +306,7 @@ struct FlashcardSetEditView: View {
                 attributedText: notesBinding,
                 tint: flashcardSet.style.tint,
                 minHeight: 80,
-                maxHeight: 260,
-                displayMode: $flashcardSet.notesDisplayMode
+                maxHeight: 260
             )
         }
         .cardSurface(padding: 18)
@@ -736,21 +735,10 @@ private struct CardRow: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.tertiary)
 
-                    Text(
-                        card.front?.summary
-                            ?? String(localized: "shared.content.empty")
-                    )
-                    .font(.headline)
-                    .lineLimit(1)
+                    CardSidePreview(side: card.front, style: .front)
                 }
 
-                Text(
-                    card.back?.summary
-                        ?? String(localized: "shared.content.empty")
-                )
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+                CardSidePreview(side: card.back, style: .back)
             }
 
             Spacer(minLength: 8)
@@ -759,6 +747,67 @@ private struct CardRow: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.tertiary)
         }
+    }
+}
+
+/// A minimal read-only preview of one side's rendered text.
+///
+/// Renders the side's markdown as formatted text (bold, italic, …) in a
+/// compact, non-editable label, so the set's card list shows what the card
+/// actually looks like instead of a plain-text summary.
+private struct CardSidePreview: View {
+
+    /// `front` is slightly more prominent than `back`.
+    enum Style { case front, back }
+
+    let side: FlashcardSide?
+    var style: Style = .front
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Group {
+            if let side, side.contentType == .richText,
+               !side.plainText.isEmpty {
+                RichTextLabel(
+                    attributedText: MarkdownFormatter.rendered(
+                        side.plainText
+                            .replacingOccurrences(of: "\n", with: " "),
+                        style: markdownStyle
+                    ),
+                    alignment: .natural
+                )
+                .lineLimit(style == .front ? 2 : 1)
+                .truncationMode(.tail)
+            } else {
+                Text(side?.summary ?? String(localized: "shared.content.empty"))
+                    .font(
+                        style == .front
+                            ? Font.subheadline.weight(.medium)
+                            : Font.subheadline
+                    )
+                    .foregroundStyle(
+                        style == .front ? Color.primary : Color.secondary
+                    )
+            }
+        }
+    }
+
+    /// Compact rendering style: small base font, no math, minimal spacing.
+    private var markdownStyle: MarkdownFormatter.Style {
+        MarkdownFormatter.Style(
+            baseFont: MarkdownFormatter.systemFont,
+            textColor: style == .front
+                ? MarkdownColors.label : MarkdownColors.secondary,
+            secondaryColor: MarkdownColors.secondary,
+            tertiaryColor: MarkdownColors.tertiary,
+            accentColor: MarkdownColors.accent,
+            alignment: .natural,
+            lineSpacing: 0,
+            paragraphSpacing: 0,
+            rendersMath: false,
+            appearance: colorScheme == .dark ? .dark : .light
+        )
     }
 }
 
@@ -1123,8 +1172,7 @@ private struct SideEditorSection: View {
             attributedText: textBinding,
             tint: tint,
             minHeight: 100,
-            maxHeight: 400,
-            displayMode: $side.displayMode
+            maxHeight: 400
         )
     }
 

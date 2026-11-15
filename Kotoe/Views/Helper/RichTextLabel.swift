@@ -139,6 +139,9 @@ struct RichTextPreview: View {
 
     let attributedText: NSAttributedString
     var bottomInset: CGFloat = 0
+    /// Room at the top trailing corner for the field's info button; the
+    /// scroll indicator starts below it.
+    var topInset: CGFloat = 0
     var trailingInset: CGFloat = 0
     var sync: SplitScrollSync?
 
@@ -146,6 +149,7 @@ struct RichTextPreview: View {
         ScrollablePreviewLabel(
             attributedText: attributedText,
             bottomInset: bottomInset,
+            topInset: topInset,
             trailingInset: trailingInset,
             sync: sync
         )
@@ -178,6 +182,7 @@ private struct ScrollablePreviewLabel: NSViewRepresentable {
 
     let attributedText: NSAttributedString
     let bottomInset: CGFloat
+    let topInset: CGFloat
     let trailingInset: CGFloat
     let sync: SplitScrollSync?
 
@@ -189,7 +194,6 @@ private struct ScrollablePreviewLabel: NSViewRepresentable {
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
         scrollView.hasVerticalScroller = true
-        scrollView.autohidesScrollers = true
         scrollView.automaticallyAdjustsContentInsets = false
 
         let container = PreviewDocumentView()
@@ -233,6 +237,12 @@ private struct ScrollablePreviewLabel: NSViewRepresentable {
         coordinator.attributedText = attributedText
         coordinator.trailingInset = trailingInset
         coordinator.bottomInset = bottomInset
+        scrollView.scrollerInsets = NSEdgeInsets(
+            top: topInset,
+            left: 0,
+            bottom: 0,
+            right: 0
+        )
         coordinator.apply(to: scrollView)
 
         if coordinator.sync !== sync {
@@ -342,6 +352,7 @@ private struct ScrollablePreviewLabel: UIViewRepresentable {
 
     let attributedText: NSAttributedString
     let bottomInset: CGFloat
+    let topInset: CGFloat
     let trailingInset: CGFloat
     let sync: SplitScrollSync?
 
@@ -357,6 +368,12 @@ private struct ScrollablePreviewLabel: UIViewRepresentable {
         let scrollView = PreviewScrollView()
         scrollView.backgroundColor = .clear
         scrollView.showsVerticalScrollIndicator = true
+        scrollView.verticalScrollIndicatorInsets = UIEdgeInsets(
+            top: topInset,
+            left: 0,
+            bottom: 0,
+            right: 0
+        )
         scrollView.alwaysBounceVertical = false
         scrollView.contentInsetAdjustmentBehavior = .never
 
@@ -393,6 +410,12 @@ private struct ScrollablePreviewLabel: UIViewRepresentable {
         coordinator.attributedText = attributedText
         coordinator.trailingInset = trailingInset
         coordinator.bottomInset = bottomInset
+        scrollView.verticalScrollIndicatorInsets = UIEdgeInsets(
+            top: topInset,
+            left: 0,
+            bottom: 0,
+            right: 0
+        )
         coordinator.apply(to: scrollView)
 
         if coordinator.sync !== sync {

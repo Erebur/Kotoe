@@ -336,7 +336,8 @@ Kotoe/
     Flashcard.swift              one card; front/back accessors, study state
     FlashcardSide.swift          content payload + PencilKit helpers
     FlashcardReview.swift        one recorded study mark (history)
-    RichTextDisplayMode.swift    editor / split / preview choice stored per field
+    RichTextDisplayMode.swift    editor / split / preview choice for a field
+                                 (local to the view, not stored)
   Views/
     FlashcardSetEditView.swift   set editor, card editor, side editor
     CardImportView.swift         bulk import sheet: paste text, preview, import
@@ -418,14 +419,6 @@ Subject ──< FlashcardSet ──< Flashcard ─┬─< FlashcardSide (role: f
 - `Subject` and `FlashcardSet` store rich-text notes in `notesRichTextData`
   (RTF). Read/write through the `attributedNotes` computed property, which also
   keeps the legacy `notes` string in sync. Edit with `RichTextField`.
-- `Subject` and `FlashcardSet` store `notesDisplayMode`, and `FlashcardSide`
-  stores `displayMode` (`RichTextDisplayMode`: `.editor`, `.split`,
-  `.preview`). The preview switch writes that value, so the chosen mode is
-  remembered per field and syncs through CloudKit with the record. The
-  persisted attributes are the optional `notesDisplayModeStorage` /
-  `displayModeStorage`; `nil` means `.editor`. Keep the storage optional: a
-  non-optional enum attribute crashes its generated getter on a store created
-  before the field existed, because the migrated value is `nil`.
 - `isArchived` and `position` exist on all levels. `sortedFlashcardSets` and
   `sortedFlashcards` filter archived items and sort by `position`. There is no
   archive UI yet, but queries and computed properties already respect the flag.
@@ -475,8 +468,8 @@ card row opens the editor for an existing one.
   characters, so the caret, selection, undo stack, autocorrection and input
   methods behave natively. Both platform editors skip re-applying attributes
   or replacing the text while an input method is composing, and the macOS
-  editor keeps `isFocused` in sync with the window's first responder in both
-  directions. Markdown markers stay visible but dimmed.
+  editor makes a programmatically focused field first responder without
+  resigning focus on its own. Markdown markers stay visible but dimmed.
   Return continues a list (and ends it on an empty item). Smart dashes are
   off so `---` can be typed. There are no
   formatting buttons.
@@ -484,10 +477,14 @@ card row opens the editor for an existing one.
   with no background. It opens `RichTextStyleGuideView`, which demonstrates
   every supported style in a read-only split field. A three-way switch
   **floats** over the text at the bottom trailing corner (material chip, no
-  footer row) and toggles editor, split, and rendered preview; the mode is
-  stored on the owning model (see **Data model**). The text gets a matching
-  bottom inset so the last line can still scroll clear of the chip. Transient
-  inputs such as the typed study answer keep `showsStyleControls` off.
+  footer row) and toggles editor, split, and rendered preview. The mode is
+  local to the field and is never stored on the model: the field opens in
+  preview every time it appears, and tapping the preview opens the editor on
+  a narrow field or the split view on a wide one. The text gets a matching
+  bottom inset so the last line can still scroll clear of the chip, and the
+  scroll indicator starts below the info button. Transient inputs such as the
+  typed study answer keep `showsStyleControls` off and pass
+  `initialMode: .editor`.
 - Fenced code blocks are syntax highlighted with highlight.js through
   HighlighterSwift (about 185 languages). The info string after the backticks
   names the language (`swift`, `py`, `sql`, `c++`, …); an untagged fence uses
@@ -810,14 +807,20 @@ text — do not paste it into Swift code or the string catalog.
   inset so the last line can scroll out from under it. The style guide sheet
   gives its sample field `fillsHeight` so it uses the whole sheet, and the info
   and mode-switch buttons show the pointing-hand cursor on macOS.
-- On iOS, when a rich text field is narrower than `narrowWidthThreshold` in
-  `RichTextField.swift` (about an iPhone in portrait), the split view is
-  removed, the field opens in preview mode whatever was saved, and tapping
-  anywhere in the field switches to editor mode, focuses the text view, and
-  opens the keyboard. When focus leaves the field it switches back to preview
-  mode. The mode switch still offers editor and preview (split excluded) so the
-  user can switch back. This only affects iOS; macOS keeps the saved mode and
-  the split view.
+- Rich text fields start in preview. Tapping the rendered text opens the
+  source editor on a narrow field (below `narrowWidthThreshold` in
+  `RichTextField.swift`) and the split view on a wide one; the threshold is
+  measured from the field's actual width on every platform. Focus follows the
+  tap. The mode switch offers editor and preview on narrow fields and all
+  three modes on wide ones. The choice is local to the view, so the field is
+  back in preview the next time it appears; on a narrow field, losing focus
+  also returns it to preview. The tap-to-edit gesture is attached to the
+  preview pane only, never to the editor, so it cannot swallow the tap that
+  places the insertion point.
+- The macOS `updateNSView` focus sync only makes a programmatically focused
+  field first responder; it never resigns. The text view's delegate already
+  reports focus-out, and resigning on a stale `isFocused` steals focus from a
+  field the user just clicked.
 
 ## Where to change what
 
